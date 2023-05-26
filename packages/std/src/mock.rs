@@ -176,6 +176,14 @@ impl Api for MockApi {
         )?)
     }
 
+    fn keccak256_digest(
+        &self,
+        data: &[u8],
+    ) -> Result<Vec<u8>, RecoverPubkeyError> {
+        let digest = cosmwasm_crypto::keccak256_digest(data)?;
+        Ok(digest.to_vec())
+    }
+
     fn secp256k1_recover_pubkey(
         &self,
         message_hash: &[u8],

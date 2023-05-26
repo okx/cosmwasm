@@ -18,6 +18,7 @@ const SUPPORTED_IMPORTS: &[&str] = &[
     "env.addr_canonicalize",
     "env.addr_humanize",
     "env.secp256k1_verify",
+    "env.keccak256_digest",
     "env.secp256k1_recover_pubkey",
     "env.ed25519_verify",
     "env.ed25519_batch_verify",
@@ -547,6 +548,7 @@ mod tests {
             (import "env" "addr_canonicalize" (func (param i32 i32) (result i32)))
             (import "env" "addr_humanize" (func (param i32 i32) (result i32)))
             (import "env" "secp256k1_verify" (func (param i32 i32 i32) (result i32)))
+            (import "env" "keccak256_digest" (func (param i32) (result i64)))
             (import "env" "secp256k1_recover_pubkey" (func (param i32 i32 i32) (result i64)))
             (import "env" "ed25519_verify" (func (param i32 i32 i32) (result i32)))
             (import "env" "ed25519_batch_verify" (func (param i32 i32 i32) (result i32)))
