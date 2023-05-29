@@ -14,6 +14,10 @@ use crate::size::Size;
 use super::gatekeeper::Gatekeeper;
 use super::limiting_tunables::LimitingTunables;
 
+use stdext::function_name;
+
+use backtrace::Backtrace;
+
 /// WebAssembly linear memory objects have sizes measured in pages. Each page
 /// is 65536 (2^16) bytes. In WebAssembly version 1, a linear memory can have at
 /// most 65536 pages, for a total of 2^32 bytes (4 gibibytes).
@@ -39,7 +43,11 @@ pub fn make_compile_time_store(
     let gas_limit = 0;
     let deterministic = Arc::new(Gatekeeper::default());
     let metering = Arc::new(Metering::new(gas_limit, cost));
+    
+    //let bt = Backtrace::new();
 
+    //println!("backtrace dump start ===============");
+    //println!("{:?}", bt);
     #[cfg(feature = "cranelift")]
     {
         let mut config = Cranelift::default();
@@ -49,6 +57,7 @@ pub fn make_compile_time_store(
         config.push_middleware(deterministic);
         config.push_middleware(metering);
         let engine = Universal::new(config).engine();
+        //println!("---------------------wasm start Cranelift-----------------------------");
         make_store_with_engine(&engine, memory_limit)
     }
 
@@ -60,6 +69,7 @@ pub fn make_compile_time_store(
         }
         config.push_middleware(deterministic);
         config.push_middleware(metering);
+        //println!("---------------------wasm start Singlepass-----------------------------");
         let engine = Universal::new(config).engine();
         make_store_with_engine(&engine, memory_limit)
     }
