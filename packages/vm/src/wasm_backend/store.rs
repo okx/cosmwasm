@@ -10,8 +10,8 @@ use wasmer::{
 };
 use wasmer_middlewares::Metering;
 
-// #[cfg((feature = "llvm"))]
-// use wasmer::LLVM;
+#[cfg((feature = "llvm"))]
+use wasmer::LLVM;
 
 use crate::size::Size;
 
@@ -56,22 +56,10 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
         compiler.into()
     }
 
-    // #[cfg((feature = "llvm"))]
-    // {
-    //     let mut compiler = LLVM::default();
-    //     println!("-------------LLVM------------------");
-    //     for middleware in middlewares {
-    //         compiler.push_middleware(middleware.clone());
-    //     }
-    //     compiler.push_middleware(deterministic);
-    //     compiler.push_middleware(metering);
-    //     compiler.into()
-    // }
-
-    #[cfg(not(feature = "cranelift"))]
+    #[cfg((feature = "llvm"))]
     {
-        let mut compiler = Singlepass::default();
-        println!("-------------Singlepass------------------");
+        let mut compiler = LLVM::default();
+        println!("-------------LLVM------------------");
         for middleware in middlewares {
             compiler.push_middleware(middleware.clone());
         }
@@ -79,6 +67,18 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
         compiler.push_middleware(metering);
         compiler.into()
     }
+
+    // #[cfg(not(feature = "cranelift"))]
+    // {
+    //     let mut compiler = Singlepass::default();
+    //     println!("-------------Singlepass------------------");
+    //     for middleware in middlewares {
+    //         compiler.push_middleware(middleware.clone());
+    //     }
+    //     compiler.push_middleware(deterministic);
+    //     compiler.push_middleware(metering);
+    //     compiler.into()
+    // }
 }
 
 /// Created a store with no compiler and the given memory limit (in bytes)
