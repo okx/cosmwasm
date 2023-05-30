@@ -1,12 +1,15 @@
 //! Import implementations
 
 use std::cmp::max;
+use wasmer::Val;
 
 use cosmwasm_crypto::{
-    ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, keccak256_digest, CryptoError,
+    ed25519_batch_verify, ed25519_verify, keccak256_digest, secp256k1_recover_pubkey,
+    secp256k1_verify, CryptoError,
 };
 use cosmwasm_crypto::{
-    ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, MESSAGE_HASH_MAX_LEN, KECCAK256_DIGEST_LEN,
+    ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, KECCAK256_DIGEST_LEN,
+    MESSAGE_HASH_MAX_LEN,
 };
 
 #[cfg(feature = "iterator")]
@@ -248,7 +251,7 @@ pub fn do_keccak256_digest<A: BackendApi, S: Storage, Q: Querier>(
     let result = keccak256_digest(&data);
     let gas_info = GasInfo::with_cost(1); // todo gas
     process_gas_info::<A, S, Q>(env, gas_info)?;
-    
+
     match result {
         Ok(digest) => {
             let digest_ptr = write_to_contract::<A, S, Q>(env, digest.as_ref())?;
@@ -400,18 +403,41 @@ pub fn do_abort<A: BackendApi, S: Storage, Q: Querier>(
 }
 
 /// Creates a Region in the contract, writes the given data to it and returns the memory location
+// fn write_to_contract<A: BackendApi, S: Storage, Q: Querier>(
+//     env: &Environment<A, S, Q>,
+//     input: &[u8],
+// ) -> VmResult<u32> {
+//     let out_size = to_u32(input.len())?;
+//     let result = env.call_function1("allocate", &[out_size.into()])?;
+//     let target_ptr = ref_to_u32(&result)?;
+//     if target_ptr == 0 {
+//         return Err(CommunicationError::zero_address().into());
+//     }
+//     write_region(&env.memory(), target_ptr, input)?;
+//     Ok(target_ptr)
+// }
+
+static mut temp_memory: u32 = 0;
+/// Creates a Region in the contract, writes the given data to it and returns the memory location
 fn write_to_contract<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     input: &[u8],
 ) -> VmResult<u32> {
-    let out_size = to_u32(input.len())?;
-    let result = env.call_function1("allocate", &[out_size.into()])?;
-    let target_ptr = ref_to_u32(&result)?;
-    if target_ptr == 0 {
-        return Err(CommunicationError::zero_address().into());
+    unsafe {
+        let max_size = 2048;
+        let mut mem: Val = Val::null();
+        let mut target_ptr: u32 = 0;
+        if temp_memory == 0 {
+            mem = env.call_function1("allocate", &[max_size.into()])?;
+            target_ptr = ref_to_u32(&mem)?;
+            if target_ptr == 0 {
+                return Err(CommunicationError::zero_address().into());
+            }
+            temp_memory = target_ptr;
+        }
+        write_region(&env.memory(), temp_memory, input)?;
+        Ok(temp_memory)
     }
-    write_region(&env.memory(), target_ptr, input)?;
-    Ok(target_ptr)
 }
 
 pub fn do_query_chain<A: BackendApi, S: Storage, Q: Querier>(

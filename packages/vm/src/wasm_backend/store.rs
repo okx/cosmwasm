@@ -43,10 +43,10 @@ pub fn make_compile_time_store(
     let gas_limit = 0;
     let deterministic = Arc::new(Gatekeeper::default());
     let metering = Arc::new(Metering::new(gas_limit, cost));
-    
+
     //let bt = Backtrace::new();
 
-    //println!("backtrace dump start ===============");
+    println!("backtrace dump start ===============");
     //println!("{:?}", bt);
     #[cfg(feature = "cranelift")]
     {
@@ -57,7 +57,7 @@ pub fn make_compile_time_store(
         config.push_middleware(deterministic);
         config.push_middleware(metering);
         let engine = Universal::new(config).engine();
-        //println!("---------------------wasm start Cranelift-----------------------------");
+        println!("---------------------wasm start Cranelift-----------------------------");
         make_store_with_engine(&engine, memory_limit)
     }
 
@@ -69,7 +69,7 @@ pub fn make_compile_time_store(
         }
         config.push_middleware(deterministic);
         config.push_middleware(metering);
-        //println!("---------------------wasm start Singlepass-----------------------------");
+        println!("---------------------wasm start Singlepass-----------------------------");
         let engine = Universal::new(config).engine();
         make_store_with_engine(&engine, memory_limit)
     }
