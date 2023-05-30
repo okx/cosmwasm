@@ -10,6 +10,9 @@ use wasmer::{
 };
 use wasmer_middlewares::Metering;
 
+// #[cfg((feature = "llvm"))]
+// use wasmer::LLVM;
+
 use crate::size::Size;
 
 use super::gatekeeper::Gatekeeper;
@@ -37,9 +40,9 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
     let deterministic = Arc::new(Gatekeeper::default());
     let metering = Arc::new(Metering::new(gas_limit, cost));
 
-    let bt = Backtrace::new();
-    println!("backtrace dump start ===============");
-    println!("{:?}", bt);
+    // let bt = Backtrace::new();
+    // println!("backtrace dump start ===============");
+    // println!("{:?}", bt);
 
     #[cfg(feature = "cranelift")]
     {
@@ -52,6 +55,18 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
         compiler.push_middleware(metering);
         compiler.into()
     }
+
+    // #[cfg((feature = "llvm"))]
+    // {
+    //     let mut compiler = LLVM::default();
+    //     println!("-------------LLVM------------------");
+    //     for middleware in middlewares {
+    //         compiler.push_middleware(middleware.clone());
+    //     }
+    //     compiler.push_middleware(deterministic);
+    //     compiler.push_middleware(metering);
+    //     compiler.into()
+    // }
 
     #[cfg(not(feature = "cranelift"))]
     {
