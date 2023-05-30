@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use derivative::Derivative;
 use wasmer::{AsStoreMut, Instance as WasmerInstance, Memory, MemoryView, Value};
@@ -11,7 +12,7 @@ use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, M
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
 use crate::errors::{VmError, VmResult};
-
+use crate::imports::{ update_db_read_gas_cal, update_db_read_gas_set};
 /// Keep this as low as necessary to avoid deepy nested errors like this:
 ///
 /// ```plain
@@ -416,6 +417,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     store: &mut impl AsStoreMut,
     info: GasInfo,
 ) -> VmResult<()> {
+    let start=Instant::now();
     let gas_left = env.get_gas_left(store);
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
@@ -426,10 +428,12 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
             .saturating_sub(info.externally_used)
             .saturating_sub(info.cost)
     });
+    update_db_read_gas_cal(start.elapsed().as_nanos());
+    let start=Instant::now();
 
     // This tells wasmer how much more gas it can consume from this point in time.
     env.set_gas_left(store, new_limit);
-
+    update_db_read_gas_set(start.elapsed().as_nanos());
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())
     } else {

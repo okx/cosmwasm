@@ -1,4 +1,5 @@
 use std::mem::MaybeUninit;
+use std::time::Instant;
 
 use wasmer::{ValueType, WasmPtr};
 
@@ -39,7 +40,6 @@ unsafe impl ValueType for Region {
 /// Errors if the length of the region exceeds `max_length`.
 pub fn read_region(memory: &wasmer::MemoryView, ptr: u32, max_length: usize) -> VmResult<Vec<u8>> {
     let region = get_region(memory, ptr)?;
-
     if region.length > to_u32(max_length)? {
         return Err(
             CommunicationError::region_length_too_big(region.length as usize, max_length).into(),

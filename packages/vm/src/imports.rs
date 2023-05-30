@@ -1,6 +1,7 @@
 //! Import implementations
 
 use std::cmp::max;
+use std::time::Instant;
 use std::marker::PhantomData;
 
 use cosmwasm_crypto::{
@@ -59,6 +60,130 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+/// cbindgen:ignore
+pub static mut DB_READ_CNT: u128 = 0;
+pub static mut DB_READ_ALL_TIME: u128 = 0;
+
+pub static mut DB_READ_READ_REGION: u128 = 0;
+pub static mut DB_READ_READ_REGION_GET_REGIN: u128 = 0;
+pub static mut DB_READ_READ_REGION_HANDLE_REGIN: u128 = 0;
+
+pub static mut DB_READ_STORE_GET: u128 = 0;
+
+pub static mut DB_READ_GAS: u128 = 0;
+pub static mut DB_READ_GAS_CAL: u128 = 0;
+pub static mut DB_READ_GAS_SET: u128 = 0;
+
+pub static mut DB_READ_WRITE_TO_CONTRACT: u128 = 0;
+pub static mut DB_READ_WRITE_CALL_FUNCTION: u128 = 0;
+pub static mut DB_READ_WRITE_WRITE_REGION: u128 = 0;
+
+pub static mut MS:u128=1000*1000;
+/// cbindgen:ignore
+pub fn get_all_time()->(u128,u128){
+    unsafe {
+        (DB_READ_CNT,DB_READ_ALL_TIME/ MS)
+    }
+}
+
+/// cbindgen:ignore
+pub  fn get_db_read() ->(u128, u128, u128, u128){
+    unsafe {
+        (DB_READ_READ_REGION/ MS, DB_READ_STORE_GET/ MS, DB_READ_GAS/ MS, DB_READ_WRITE_TO_CONTRACT/ MS)
+    }
+}
+
+/// cbindgen:ignore
+pub  fn get_detail() ->(u128, u128, u128, u128,u128, u128) {
+    unsafe {
+        (DB_READ_READ_REGION_GET_REGIN/ MS, DB_READ_READ_REGION_HANDLE_REGIN/ MS,
+         DB_READ_WRITE_CALL_FUNCTION/ MS, DB_READ_WRITE_WRITE_REGION/ MS,
+         DB_READ_GAS_CAL/ MS, DB_READ_GAS_SET/ MS,
+        )
+    }
+}
+pub fn reset_db_read(){
+    unsafe {
+        DB_READ_CNT =0;
+        DB_READ_ALL_TIME =0;
+
+        DB_READ_READ_REGION =0;
+        DB_READ_STORE_GET =0;
+        DB_READ_GAS =0;
+        DB_READ_WRITE_TO_CONTRACT =0;
+
+        DB_READ_READ_REGION_GET_REGIN =0;
+        DB_READ_READ_REGION_HANDLE_REGIN =0;
+
+        DB_READ_WRITE_CALL_FUNCTION =0;
+        DB_READ_WRITE_WRITE_REGION =0;
+    }
+}
+fn update_db_read_all_time(value: u128) {
+    unsafe {
+        DB_READ_ALL_TIME += value;
+        DB_READ_CNT +=1
+    }
+}
+fn update_db_read_read_region(value:u128){
+    unsafe {
+        DB_READ_READ_REGION +=value;
+    }
+}
+
+// /// cbindgen:ignore
+// pub fn update_db_read_read_regin_get_regin(value:u128){
+//     unsafe {
+//         DB_READ_READ_REGION_GET_REGIN+=value;
+//     }
+// }
+// /// cbindgen:ignore
+// pub  fn update_db_read_read_regin_handle_regin(value:u128){
+//     unsafe {
+//         DB_READ_READ_REGION_HANDLE_REGIN+=value;
+//     }
+// }
+
+fn update_db_read_store_get(value:u128){
+    unsafe {
+        DB_READ_STORE_GET +=value;
+    }
+}
+fn update_db_read_gas(value:u128){
+    unsafe {
+        DB_READ_GAS +=value;
+    }
+}
+
+pub  fn update_db_read_gas_cal(value:u128){
+    unsafe {
+        DB_READ_GAS_CAL+=value;
+    }
+}
+
+/// cbindgen:ignore
+pub fn update_db_read_gas_set(value :u128){
+    unsafe {
+        DB_READ_GAS_SET+=value
+    }
+}
+/// cbindgen:ignore
+fn update_db_read_write_to_contract(value:u128){
+    unsafe {
+        DB_READ_WRITE_TO_CONTRACT +=value;
+    }
+}
+fn update_db_read_write_call_function(value:u128){
+    unsafe {
+        DB_READ_WRITE_CALL_FUNCTION +=value;
+    }
+}
+fn update_db_read_write_region(value:u128){
+    unsafe {
+        DB_READ_WRITE_WRITE_REGION +=value;
+    }
+}
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -71,19 +196,28 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
     mut env: FunctionEnvMut<Environment<A, S, Q>>,
     key_ptr: u32,
 ) -> VmResult<u32> {
+    let start=Instant::now();
+    let all_time_start=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
-
+    update_db_read_read_region(start.elapsed().as_nanos());
+    let start=Instant::now();
     let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+    update_db_read_store_get(start.elapsed().as_nanos());
+    let start=Instant::now();
     process_gas_info(data, &mut store, gas_info)?;
     let value = result?;
-
+    update_db_read_gas(start.elapsed().as_nanos());
     let out_data = match value {
         Some(data) => data,
         None => return Ok(0),
     };
-    write_to_contract(data, &mut store, &out_data)
+    let start=Instant::now();
+    let tt=write_to_contract::<A, S, Q>(data, &mut store, &out_data);
+    update_db_read_write_to_contract(start.elapsed().as_nanos());
+    update_db_read_all_time(all_time_start.elapsed().as_nanos());
+    tt
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
@@ -539,13 +673,17 @@ fn write_to_contract<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     store: &mut impl AsStoreMut,
     input: &[u8],
 ) -> VmResult<u32> {
+    let start=Instant::now();
     let out_size = to_u32(input.len())?;
     let result = data.call_function1(store, "allocate", &[out_size.into()])?;
+    update_db_read_write_call_function(start.elapsed().as_nanos());
+    let start=Instant::now();
     let target_ptr = ref_to_u32(&result)?;
     if target_ptr == 0 {
         return Err(CommunicationError::zero_address().into());
     }
     write_region(&data.memory(store), target_ptr, input)?;
+    update_db_read_write_region(start.elapsed().as_nanos());
     Ok(target_ptr)
 }
 
