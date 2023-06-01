@@ -38,7 +38,8 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
 
     #[cfg(feature = "cranelift")]
     {
-        println!("wasm compiler:cranelift.");
+        panic!("------------cranelift--------------");
+        println!("------wasm compiler:cranelift------");
         let mut compiler = Cranelift::default();
         for middleware in middlewares {
             compiler.push_middleware(middleware.clone());
@@ -50,7 +51,8 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
 
     #[cfg(not(feature = "cranelift"))]
     {
-        println!("wasm compiler:singlepass.");
+        panic!("------------singlepass--------------");
+        println!("------wasm compiler:singlepass------");
         let mut compiler = Singlepass::default();
         for middleware in middlewares {
             compiler.push_middleware(middleware.clone());
