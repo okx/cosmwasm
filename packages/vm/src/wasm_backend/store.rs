@@ -54,7 +54,7 @@ pub fn make_compile_time_store(
 
     #[cfg(not(feature = "cranelift"))]
     {
-        println!("------This is a optimize call function version 0602------");
+        println!("------This is a optimize call function version 621------");
         let mut config = Singlepass::default();
         for middleware in middlewares {
             config.push_middleware(middleware.clone());

@@ -86,7 +86,7 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
 pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     key_ptr: u32,
-    value_ptr:u32,
+    value_ptr: u32,
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
@@ -98,7 +98,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         Some(data) => data,
         None => return Ok(0),
     };
-    write_to_contract_ex::<A, S, Q>(env, &out_data,value_ptr)
+    write_to_contract_ex::<A, S, Q>(env, &out_data, value_ptr)
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
@@ -395,18 +395,16 @@ pub fn do_abort<A: BackendApi, S: Storage, Q: Querier>(
 fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     input: &[u8],
-    output:u32,
+    output: u32,
 ) -> VmResult<u32> {
-    let ret = write_region(&env.memory(), output, input);
+    return write_to_contract(env, input);
 
-    return match ret {
-        Ok(t) => {
-            Ok(output)
-        }
-        _ => {
-            write_to_contract(env, input)
-        }
-    };
+    // let ret = write_region(&env.memory(), output, input);
+
+    // return match ret {
+    //     Ok(t) => Ok(output),
+    //     _ => write_to_contract(env, input),
+    // };
 }
 
 /// Creates a Region in the contract, writes the given data to it and returns the memory location
