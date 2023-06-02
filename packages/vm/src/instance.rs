@@ -10,7 +10,7 @@ use crate::environment::Environment;
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::features::required_features_from_module;
 use crate::imports::{
-    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_remove,
+    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read,do_db_read_ex, do_db_remove,
     do_db_write, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
     do_secp256k1_recover_pubkey, do_secp256k1_verify,
 };
@@ -96,6 +96,11 @@ where
         env_imports.insert(
             "db_read",
             Function::new_native_with_env(store, env.clone(), do_db_read),
+        );
+
+        env_imports.insert(
+            "db_read_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_read_ex),
         );
 
         // Writes the given value into the database entry at the given key.

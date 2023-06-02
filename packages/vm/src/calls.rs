@@ -595,6 +595,7 @@ mod tests {
     use cosmwasm_std::{coins, Empty};
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
+    static Counter: &[u8] = include_bytes!("/Users/oker/work/go/src/github.com/okx/vm-benchmark-main/contracts/wasm/counter/target/wasm32-unknown-unknown/release/counter.wasm");
 
     #[test]
     fn call_instantiate_works() {
@@ -604,6 +605,25 @@ mod tests {
         let info = mock_info("creator", &coins(1000, "earth"));
         let msg = br#"{"verifier": "verifies", "beneficiary": "benefits"}"#;
         call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+    }
+
+    #[test]
+    fn call_execute_worksPerf() {
+        let mut instance = mock_instance(Counter, &[]);
+
+        // init
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let msg = br#"{}"#;
+        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"1000000"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();
     }

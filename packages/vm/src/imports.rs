@@ -1,6 +1,7 @@
 //! Import implementations
 
 use std::cmp::max;
+use wasmer::Val;
 
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
@@ -80,6 +81,24 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
         None => return Ok(0),
     };
     write_to_contract::<A, S, Q>(env, &out_data)
+}
+
+pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    key_ptr: u32,
+    value_ptr:u32,
+) -> VmResult<u32> {
+    let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+
+    let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+    let value = result?;
+
+    let out_data = match value {
+        Some(data) => data,
+        None => return Ok(0),
+    };
+    write_to_contract_ex::<A, S, Q>(env, &out_data,value_ptr)
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
@@ -370,6 +389,24 @@ pub fn do_abort<A: BackendApi, S: Storage, Q: Querier>(
     let message_data = read_region(&env.memory(), message_ptr, MAX_LENGTH_ABORT)?;
     let msg = String::from_utf8_lossy(&message_data);
     Err(VmError::aborted(msg))
+}
+
+/// Creates a Region in the contract, writes the given data to it and returns the memory location
+fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    input: &[u8],
+    output:u32,
+) -> VmResult<u32> {
+    let ret = write_region(&env.memory(), output, input);
+
+    return match ret {
+        Ok(t) => {
+            Ok(output)
+        }
+        _ => {
+            write_to_contract(env, input)
+        }
+    };
 }
 
 /// Creates a Region in the contract, writes the given data to it and returns the memory location
