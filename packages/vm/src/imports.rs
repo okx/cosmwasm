@@ -397,7 +397,8 @@ fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
     input: &[u8],
     output: u32,
 ) -> VmResult<u32> {
-    return write_to_contract(env, input);
+    return Err(CommunicationError::zero_address().into());
+    // return write_to_contract(env, input);
 
     // let ret = write_region(&env.memory(), output, input);
 
