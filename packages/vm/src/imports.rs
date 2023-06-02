@@ -2,6 +2,7 @@
 
 use std::cmp::max;
 use std::marker::PhantomData;
+// use wasmer::Val;
 
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
@@ -84,6 +85,26 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
         None => return Ok(0),
     };
     write_to_contract(data, &mut store, &out_data)
+}
+
+pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    key_ptr: u32,
+    value_ptr: u32,
+) -> VmResult<u32> {
+    let (data, mut store) = env.data_and_store_mut();
+
+    let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
+
+    let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+    process_gas_info(data, &mut store, gas_info)?;
+    let value = result?;
+
+    let out_data = match value {
+        Some(data) => data,
+        None => return Ok(0),
+    };
+    write_to_contract_ex(data, &mut store, &out_data, value_ptr)
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
@@ -531,6 +552,21 @@ pub fn do_db_next<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
 
     let out_data = encode_sections(&[key, value])?;
     write_to_contract(data, &mut store, &out_data)
+}
+
+/// Creates a Region in the contract, writes the given data to it and returns the memory location
+fn write_to_contract_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    data: &Environment<A, S, Q>,
+    store: &mut impl AsStoreMut,
+    input: &[u8],
+    output: u32,
+) -> VmResult<u32> {
+    let ret = write_region(&data.memory(store), output, input);
+
+    return match ret {
+        Ok(t) => Ok(output),
+        _ => write_to_contract(data, store, input),
+    };
 }
 
 /// Creates a Region in the contract, writes the given data to it and returns the memory location

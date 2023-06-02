@@ -793,6 +793,7 @@ mod tests {
         .unwrap();
         let supported_imports: &[&str] = &[
             "env.db_read",
+            "env.db_read_ex",
             "env.db_write",
             "env.db_remove",
             "env.addr_canonicalize",
