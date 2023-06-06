@@ -595,7 +595,7 @@ mod tests {
     use cosmwasm_std::{coins, Empty};
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
-    static Counter: &[u8] = include_bytes!("/Users/oker/work/go/src/github.com/okx/vm-benchmark-main/contracts/wasm/counter/target/wasm32-unknown-unknown/release/counter.wasm");
+    static Counter: &[u8] = include_bytes!("/Users/oker/scf/gopath/src/github.com/okx/vm-benchmark/contracts/wasm/counter/artifacts/counter.wasm");
 
     #[test]
     fn call_instantiate_works() {

@@ -183,8 +183,8 @@ mod tests {
         {
             let cached_module = cached.unwrap();
             let import_object = imports! {};
-            let instance = WasmerInstance::new(&cached_module, &import_object).unwrap();
-            set_remaining_points(&instance, TESTING_GAS_LIMIT);
+            let mut instance = WasmerInstance::new(&cached_module, &import_object).unwrap();
+            set_remaining_points(&mut instance, TESTING_GAS_LIMIT);
             let add_one = instance.exports.get_function("add_one").unwrap();
             let result = add_one.call(&[42.into()]).unwrap();
             assert_eq!(result[0].unwrap_i32(), 43);

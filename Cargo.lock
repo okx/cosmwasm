@@ -277,9 +277,9 @@ dependencies = [
  "hackatom",
  "loupe",
  "walrus",
- "wasmer",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -338,7 +338,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "thiserror",
- "wasmer",
+ "wasmer 2.2.1",
  "wasmer-middlewares",
  "wat",
 ]
@@ -1948,6 +1948,30 @@ checksum = "d554b7f530dee5964d9a9468d95c1f8b8acae4f282807e7d27d4b03099a46744"
 [[package]]
 name = "wasmer"
 version = "2.2.1"
+dependencies = [
+ "cfg-if",
+ "indexmap",
+ "js-sys",
+ "loupe",
+ "more-asserts",
+ "target-lexicon",
+ "thiserror",
+ "wasm-bindgen",
+ "wasmer-compiler 2.2.1",
+ "wasmer-compiler-cranelift 2.2.1",
+ "wasmer-compiler-singlepass",
+ "wasmer-derive 2.2.1",
+ "wasmer-engine 2.2.1",
+ "wasmer-engine-dylib 2.2.1",
+ "wasmer-engine-universal 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
+ "winapi",
+]
+
+[[package]]
+name = "wasmer"
+version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f727a39e7161f7438ddb8eafe571b67c576a8c2fb459f666d9053b5bba4afdea"
 dependencies = [
@@ -1959,17 +1983,33 @@ dependencies = [
  "target-lexicon",
  "thiserror",
  "wasm-bindgen",
- "wasmer-compiler",
- "wasmer-compiler-cranelift",
- "wasmer-compiler-singlepass",
- "wasmer-derive",
- "wasmer-engine",
- "wasmer-engine-dylib",
- "wasmer-engine-universal",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-compiler-cranelift 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-derive 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-engine 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-engine-dylib 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-engine-universal 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
  "winapi",
+]
+
+[[package]]
+name = "wasmer-compiler"
+version = "2.2.1"
+dependencies = [
+ "enumset",
+ "loupe",
+ "rkyv",
+ "serde",
+ "serde_bytes",
+ "smallvec",
+ "target-lexicon",
+ "thiserror",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
+ "wasmparser 0.78.2",
 ]
 
 [[package]]
@@ -1986,9 +2026,28 @@ dependencies = [
  "smallvec",
  "target-lexicon",
  "thiserror",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser 0.78.2",
+]
+
+[[package]]
+name = "wasmer-compiler-cranelift"
+version = "2.2.1"
+dependencies = [
+ "cranelift-codegen",
+ "cranelift-entity",
+ "cranelift-frontend",
+ "gimli 0.25.0",
+ "loupe",
+ "more-asserts",
+ "rayon",
+ "smallvec",
+ "target-lexicon",
+ "tracing",
+ "wasmer-compiler 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
 ]
 
 [[package]]
@@ -2007,16 +2066,14 @@ dependencies = [
  "smallvec",
  "target-lexicon",
  "tracing",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "wasmer-compiler-singlepass"
 version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5432e993840cdb8e6875ddc8c9eea64e7a129579b4706bd91b8eb474d9c4a860"
 dependencies = [
  "byteorder",
  "dynasm",
@@ -2026,9 +2083,19 @@ dependencies = [
  "more-asserts",
  "rayon",
  "smallvec",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
+]
+
+[[package]]
+name = "wasmer-derive"
+version = "2.2.1"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -2041,6 +2108,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "wasmer-engine"
+version = "2.2.1"
+dependencies = [
+ "backtrace",
+ "enumset",
+ "lazy_static",
+ "loupe",
+ "memmap2",
+ "more-asserts",
+ "rustc-demangle",
+ "serde",
+ "serde_bytes",
+ "target-lexicon",
+ "thiserror",
+ "wasmer-compiler 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
 ]
 
 [[package]]
@@ -2060,9 +2147,32 @@ dependencies = [
  "serde_bytes",
  "target-lexicon",
  "thiserror",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "wasmer-engine-dylib"
+version = "2.2.1"
+dependencies = [
+ "cfg-if",
+ "enum-iterator",
+ "enumset",
+ "leb128",
+ "libloading",
+ "loupe",
+ "object",
+ "rkyv",
+ "serde",
+ "tempfile",
+ "tracing",
+ "wasmer-compiler 2.2.1",
+ "wasmer-engine 2.2.1",
+ "wasmer-object 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
+ "which",
 ]
 
 [[package]]
@@ -2082,12 +2192,30 @@ dependencies = [
  "serde",
  "tempfile",
  "tracing",
- "wasmer-compiler",
- "wasmer-engine",
- "wasmer-object",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-engine 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-object 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "which",
+]
+
+[[package]]
+name = "wasmer-engine-universal"
+version = "2.2.1"
+dependencies = [
+ "cfg-if",
+ "enum-iterator",
+ "enumset",
+ "leb128",
+ "loupe",
+ "region",
+ "rkyv",
+ "wasmer-compiler 2.2.1",
+ "wasmer-engine 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
+ "winapi",
 ]
 
 [[package]]
@@ -2103,23 +2231,31 @@ dependencies = [
  "loupe",
  "region",
  "rkyv",
- "wasmer-compiler",
- "wasmer-engine",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-engine 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi",
 ]
 
 [[package]]
 name = "wasmer-middlewares"
 version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "659775db15684f4674c3a8967409682c2eb44f63cc21121fa3dcd975c03ab887"
 dependencies = [
  "loupe",
- "wasmer",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer 2.2.1",
+ "wasmer-types 2.2.1",
+ "wasmer-vm 2.2.1",
+]
+
+[[package]]
+name = "wasmer-object"
+version = "2.2.1"
+dependencies = [
+ "object",
+ "thiserror",
+ "wasmer-compiler 2.2.1",
+ "wasmer-types 2.2.1",
 ]
 
 [[package]]
@@ -2130,8 +2266,19 @@ checksum = "24ce18ac2877050e59580d27ee1a88f3192d7a31e77fbba0852abc7888d6e0b5"
 dependencies = [
  "object",
  "thiserror",
- "wasmer-compiler",
- "wasmer-types",
+ "wasmer-compiler 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "wasmer-types"
+version = "2.2.1"
+dependencies = [
+ "indexmap",
+ "loupe",
+ "rkyv",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -2145,6 +2292,27 @@ dependencies = [
  "rkyv",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "wasmer-vm"
+version = "2.2.1"
+dependencies = [
+ "backtrace",
+ "cc",
+ "cfg-if",
+ "enum-iterator",
+ "indexmap",
+ "libc",
+ "loupe",
+ "memoffset",
+ "more-asserts",
+ "region",
+ "rkyv",
+ "serde",
+ "thiserror",
+ "wasmer-types 2.2.1",
+ "winapi",
 ]
 
 [[package]]
@@ -2166,7 +2334,7 @@ dependencies = [
  "rkyv",
  "serde",
  "thiserror",
- "wasmer-types",
+ "wasmer-types 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi",
 ]
 
