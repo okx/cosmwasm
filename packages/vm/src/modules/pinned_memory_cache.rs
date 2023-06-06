@@ -104,8 +104,8 @@ mod tests {
 
         // Ensure original module can be executed
         {
-            let instance = WasmerInstance::new(&mut store, &original, &imports! {}).unwrap();
-            set_remaining_points(&mut store, &instance, TESTING_GAS_LIMIT);
+            let mut instance = WasmerInstance::new(&mut store, &original, &imports! {}).unwrap();
+            set_remaining_points(&mut store, &mut instance, TESTING_GAS_LIMIT);
             let add_one = instance.exports.get_function("add_one").unwrap();
             let result = add_one.call(&mut store, &[42.into()]).unwrap();
             assert_eq!(result[0].unwrap_i32(), 43);
@@ -120,8 +120,8 @@ mod tests {
 
         // Ensure cached module can be executed
         {
-            let instance = WasmerInstance::new(&mut store, &cached.module, &imports! {}).unwrap();
-            set_remaining_points(&mut store, &instance, TESTING_GAS_LIMIT);
+            let mut instance = WasmerInstance::new(&mut store, &cached.module, &imports! {}).unwrap();
+            set_remaining_points(&mut store, &mut instance, TESTING_GAS_LIMIT);
             let add_one = instance.exports.get_function("add_one").unwrap();
             let result = add_one.call(&mut store, &[42.into()]).unwrap();
             assert_eq!(result[0].unwrap_i32(), 43);

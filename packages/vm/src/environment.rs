@@ -185,13 +185,13 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         self.with_context_data_mut(|context_data| callback(&mut context_data.gas_state))
     }
 
-    pub fn with_wasmer_instance<C, R>(&self, callback: C) -> VmResult<R>
+    pub fn with_wasmer_instance<C, R>(&self, mut callback: C) -> VmResult<R>
     where
-        C: FnOnce(&WasmerInstance) -> VmResult<R>,
+        C: FnMut(&mut WasmerInstance) -> VmResult<R>,
     {
         self.with_context_data(|context_data| match context_data.wasmer_instance {
-            Some(instance_ptr) => {
-                let instance_ref = unsafe { instance_ptr.as_ref() };
+            Some(mut instance_ptr) => {
+                let instance_ref = unsafe { instance_ptr.as_mut() };
                 callback(instance_ref)
             }
             None => Err(VmError::uninitialized_context_data("wasmer_instance")),
@@ -217,7 +217,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         let res = func.call(store, args).map_err(|runtime_err| -> VmError {
             self.with_wasmer_instance::<_, Never>(|instance| {
                 let err: VmError = match get_remaining_points(store, instance) {
-                    MeteringPoints::Remaining(_) => VmError::from(runtime_err),
+                    MeteringPoints::Remaining(_) => panic!("aa"),
                     MeteringPoints::Exhausted => VmError::gas_depletion(),
                 };
                 Err(err)

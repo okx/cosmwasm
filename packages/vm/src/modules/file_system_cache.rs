@@ -242,8 +242,8 @@ mod tests {
             let (cached_module, module_size) = cached.unwrap();
             assert_eq!(module_size, module.serialize().unwrap().len());
             let import_object = imports! {};
-            let instance = WasmerInstance::new(&mut store, &cached_module, &import_object).unwrap();
-            set_remaining_points(&mut store, &instance, TESTING_GAS_LIMIT);
+            let mut instance = WasmerInstance::new(&mut store, &cached_module, &import_object).unwrap();
+            set_remaining_points(&mut store, &mut instance, TESTING_GAS_LIMIT);
             let add_one = instance.exports.get_function("add_one").unwrap();
             let result = add_one.call(&mut store, &[42.into()]).unwrap();
             assert_eq!(result[0].unwrap_i32(), 43);

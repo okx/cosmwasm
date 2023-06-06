@@ -590,6 +590,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
     use super::*;
     use crate::testing::{mock_env, mock_info, mock_instance};
     use cosmwasm_std::{coins, Empty};
@@ -612,6 +613,7 @@ mod tests {
     }
     #[test]
     fn call_execute_worksPerf() {
+        let start=Instant::now();
         let mut instance = mock_instance(Counter, &[]);
 
         // init
@@ -627,6 +629,7 @@ mod tests {
         let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();
+        println!("ts {:?}",start.elapsed())
     }
 
     #[test]
