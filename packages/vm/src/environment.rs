@@ -332,10 +332,10 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     }
 
     pub fn get_gas_left_ex(&self,remain:&Global,exhausted:&Global,store: &mut impl AsStoreMut)->u64{
-        if exhausted.get(store).unwrap_i32()>0{
-            return 0
+        match exhausted.get(store) {
+            value if value.unwrap_i32() > 0 => 0,
+            _ => u64::try_from(remain.get(store)).unwrap(),
         }
-        u64::try_from(remain.get(store)).unwrap()
     }
 
 
