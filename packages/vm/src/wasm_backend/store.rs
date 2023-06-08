@@ -37,7 +37,13 @@ pub fn make_engine(middlewares: &[Arc<dyn ModuleMiddleware>]) -> Engine {
     let metering = Arc::new(Metering::new(gas_limit, cost));
 
     #[cfg(feature = "cranelift")]
+    println!("Using Cranelift compiler.");
+
+    #[cfg(feature = "cranelift")]
     let mut compiler = Cranelift::default();
+
+    #[cfg(not(feature = "cranelift"))]
+    println!("Using Singlepass compiler.");
 
     #[cfg(not(feature = "cranelift"))]
     let mut compiler = Singlepass::default();
