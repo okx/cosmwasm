@@ -2,6 +2,7 @@
 
 use std::cmp::max;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
@@ -59,6 +60,101 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+
+
+
+/// cbindgen:ignore
+pub static mut DB_READ_CNT: u128 = 0;
+pub static mut DB_READ_ALL_TIME: u128 = 0;
+
+pub static mut DB_READ_READ_REGION: u128 = 0;
+
+pub static mut DB_READ_STORE_GET: u128 = 0;
+
+pub static mut DB_READ_GAS: u128 = 0;
+
+pub static mut DB_READ_WRITE_TO_CONTRACT: u128 = 0;
+pub static mut DB_READ_WRITE_CALL_FUNCTION: u128 = 0;
+pub static mut DB_READ_WRITE_WRITE_REGION: u128 = 0;
+
+pub static mut MS:u128=1000*1000;
+/// cbindgen:ignore
+pub fn get_all_time()->(u128,u128){
+    unsafe {
+        (DB_READ_CNT,DB_READ_ALL_TIME/ MS)
+    }
+}
+
+/// cbindgen:ignore
+pub  fn get_db_read() ->(u128, u128, u128, u128){
+    unsafe {
+        (DB_READ_READ_REGION/ MS, DB_READ_STORE_GET/ MS, DB_READ_GAS/ MS, DB_READ_WRITE_TO_CONTRACT/ MS)
+    }
+}
+
+/// cbindgen:ignore
+pub  fn get_detail() ->(u128, u128) {
+    unsafe {
+        (DB_READ_WRITE_CALL_FUNCTION/ MS, DB_READ_WRITE_WRITE_REGION/ MS)
+    }
+}
+pub fn reset_db_read(){
+    unsafe {
+        DB_READ_CNT =0;
+        DB_READ_ALL_TIME =0;
+
+        DB_READ_READ_REGION =0;
+        DB_READ_STORE_GET =0;
+        DB_READ_GAS =0;
+        DB_READ_WRITE_TO_CONTRACT =0;
+
+        DB_READ_WRITE_CALL_FUNCTION =0;
+        DB_READ_WRITE_WRITE_REGION =0;
+    }
+}
+fn update_db_read_all_time(value: u128) {
+    unsafe {
+        DB_READ_ALL_TIME += value;
+        DB_READ_CNT +=1
+    }
+}
+fn update_db_read_read_region(value:u128){
+    unsafe {
+        DB_READ_READ_REGION +=value;
+    }
+}
+
+
+fn update_db_read_store_get(value:u128){
+    unsafe {
+        DB_READ_STORE_GET +=value;
+    }
+}
+fn update_db_read_gas(value:u128){
+    unsafe {
+        DB_READ_GAS +=value;
+    }
+}
+
+/// cbindgen:ignore
+fn update_db_read_write_to_contract(value:u128){
+    unsafe {
+        DB_READ_WRITE_TO_CONTRACT +=value;
+    }
+}
+fn update_db_read_write_write_region(value:u128){
+    unsafe {
+        DB_READ_WRITE_CALL_FUNCTION +=value;
+    }
+}
+fn update_db_read_write_failed_write_to_contract(value:u128){
+    unsafe {
+        DB_READ_WRITE_WRITE_REGION +=value;
+    }
+}
+
+
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -91,18 +187,29 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     key_ptr: u32,
     value_ptr:u32,
 ) -> VmResult<u32> {
+    let start=Instant::now();
+    let all_time_start=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
+    update_db_read_read_region(start.elapsed().as_nanos());
+    let start=Instant::now();
 
     let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+    update_db_read_store_get(start.elapsed().as_nanos());
+    let start=Instant::now();
     process_gas_info::<A, S, Q>(data, &mut store,gas_info)?;
+    update_db_read_gas(start.elapsed().as_nanos());
     let value = result?;
 
     let out_data = match value {
         Some(data) => data,
         None => return Ok(0),
     };
-    write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
+    let start=Instant::now();
+    let tt=write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr);
+    update_db_read_write_to_contract(start.elapsed().as_nanos());
+    update_db_read_all_time(all_time_start.elapsed().as_nanos());
+    tt
 }
 
 
@@ -559,14 +666,19 @@ fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+
     input: &[u8],
     output:u32,
 ) -> VmResult<u32> {
+    let start=Instant::now();
     let ret = write_region(&data.memory(store), output, input);
+    update_db_read_write_write_region(start.elapsed().as_nanos());
+    let start=Instant::now();
 
     return match ret {
         Ok(t) => {
             Ok(output)
         }
         _ => {
-            write_to_contract(data, store, input)
+            let tt=write_to_contract(data, store, input);
+            update_db_read_write_failed_write_to_contract(start.elapsed().as_nanos());
+            return tt
         }
     };
 }
