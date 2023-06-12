@@ -507,6 +507,7 @@ dependencies = [
 name = "cosmwasm-vm"
 version = "1.2.5"
 dependencies = [
+ "backtrace",
  "bitflags",
  "bytecheck",
  "bytes",
