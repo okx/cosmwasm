@@ -13,6 +13,7 @@ pub const REQUIRED_IBC_EXPORTS: &[&str] = &[
 ];
 
 pub fn deserialize_wasm(wasm_code: &[u8]) -> VmResult<Module> {
+    println!("ddddddd");
     deserialize_buffer(wasm_code).map_err(|err| {
         VmError::static_validation_err(format!(
             "Wasm bytecode could not be deserialized. Deserialization error: \"{}\"",

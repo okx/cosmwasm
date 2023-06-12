@@ -72,7 +72,7 @@ const MAX_IMPORTS: usize = 100;
 
 /// Checks if the data is valid wasm and compatibility with the CosmWasm API (imports and exports)
 pub fn check_wasm(wasm_code: &[u8], available_capabilities: &HashSet<String>) -> VmResult<()> {
-    return Ok(());
+    // return Ok(());
     let module = deserialize_wasm(wasm_code)?;
     check_wasm_tables(&module)?;
     check_wasm_memories(&module)?;
