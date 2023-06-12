@@ -563,9 +563,11 @@ fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+
 
     return match ret {
         Ok(t) => {
+            println!("ok");
             Ok(output)
         }
         _ => {
+            println!("failed");
             write_to_contract(data, store, input)
         }
     };
