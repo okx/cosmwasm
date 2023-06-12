@@ -13,7 +13,7 @@ pub const REQUIRED_IBC_EXPORTS: &[&str] = &[
 ];
 
 pub fn deserialize_wasm(wasm_code: &[u8]) -> VmResult<Module> {
-    let backtrace = Backtrace::capture();
+    let backtrace = Backtrace::force_capture();
     println!("ddddddd");
     println!("Backtrace:\n{:?}", backtrace.to_string());
     deserialize_buffer(wasm_code).map_err(|err| {
