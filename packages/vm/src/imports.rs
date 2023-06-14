@@ -2,6 +2,7 @@
 
 use std::cmp::max;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
@@ -66,11 +67,48 @@ const MAX_LENGTH_ABORT: usize = 2 * MI;
 // argument and cannot capture other variables. Thus everything is accessed
 // through the env.
 
+
+pub static mut DB_READ_CNT: u128 = 0;
+pub static mut DB_READ_CNT_EX: u128 = 0;
+pub static mut DB_READ_ALL_TIME: u128 = 0;
+pub static mut DB_READ_ALL_TIME_EX: u128 = 0;
+
+pub static mut MS:u128=1000*1000;
+
+pub fn reset_db_read(){
+    unsafe {
+        DB_READ_CNT =0;
+        DB_READ_CNT_EX =0;
+        DB_READ_ALL_TIME =0;
+        DB_READ_ALL_TIME_EX =0;
+    }
+}
+
+pub fn get_detail()->(u128,u128,u128,u128){
+    unsafe {
+        (DB_READ_CNT,DB_READ_CNT_EX,DB_READ_ALL_TIME/MS,DB_READ_ALL_TIME_EX/MS)
+    }
+}
+fn update_db_db_read(value: u128) {
+    unsafe {
+        DB_READ_ALL_TIME += value;
+        DB_READ_CNT +=1
+    }
+}
+
+fn update_db_db_read_ex(value: u128) {
+    unsafe {
+        DB_READ_ALL_TIME_EX += value;
+        DB_READ_CNT_EX +=1
+    }
+}
+
 /// Reads a storage entry from the VM's storage into Wasm memory
 pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
     mut env: FunctionEnvMut<Environment<A, S, Q>>,
     key_ptr: u32,
 ) -> VmResult<u32> {
+    let s=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
@@ -83,7 +121,9 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
         Some(data) => data,
         None => return Ok(0),
     };
-    write_to_contract(data, &mut store, &out_data)
+   let tt= write_to_contract(data, &mut store, &out_data);
+    update_db_db_read(s.elapsed().as_nanos());
+    return tt
 }
 
 pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
@@ -91,6 +131,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     key_ptr: u32,
     value_ptr:u32,
 ) -> VmResult<u32> {
+   let s=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
@@ -102,7 +143,9 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
         Some(data) => data,
         None => return Ok(0),
     };
-    write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
+    let tt=write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr);
+    update_db_db_read_ex(s.elapsed().as_nanos());
+    return tt
 }
 
 

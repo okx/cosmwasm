@@ -1,3 +1,4 @@
+use std::time::Instant;
 use serde::de::DeserializeOwned;
 use wasmer::Value;
 
@@ -12,6 +13,7 @@ use cosmwasm_std::{
 use crate::backend::{BackendApi, Querier, Storage};
 use crate::conversion::ref_to_u32;
 use crate::errors::{VmError, VmResult};
+use crate::imports::{get_detail, reset_db_read};
 use crate::instance::Instance;
 use crate::serde::{from_slice, to_vec};
 
@@ -574,6 +576,8 @@ where
     S: Storage + 'static,
     Q: Querier + 'static,
 {
+    let tt=Instant::now();
+    reset_db_read();
     let mut arg_region_ptrs = Vec::<Value>::with_capacity(args.len());
     for arg in args {
         let region_ptr = instance.allocate(arg.len())?;
@@ -585,6 +589,10 @@ where
     let data = instance.read_memory(res_region_ptr, result_max_length)?;
     // free return value in wasm (arguments were freed in wasm code)
     instance.deallocate(res_region_ptr)?;
+    println!("all_ts {:?}",tt.elapsed());
+    let (a,b,c,d)=get_detail();
+    println!("do_db_read {:?} {:?}",a,c);
+    println!("do_db_read_ex {:?} {:?}",b,d);
     Ok(data)
 }
 
