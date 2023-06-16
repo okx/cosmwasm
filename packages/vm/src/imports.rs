@@ -16,7 +16,7 @@ use wasmer::{AsStoreMut, FunctionEnvMut};
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{process_gas_info, DebugInfo, Environment};
+use crate::environment::{process_gas_info, DebugInfo, Environment, CacheStore};
 use crate::errors::{CommunicationError, VmError, VmResult};
 #[cfg(feature = "iterator")]
 use crate::memory::maybe_read_region;
@@ -94,7 +94,21 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let (data, mut store) = env.data_and_store_mut();
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
+    let cache = data.state_cache.get(&key);
+    let ret = match cache {
+        Some(mut store_cache) => {
+            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gasInfo)?;
+            write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value, value_ptr)
+        }
+        None => {
+            Ok(0)
+        }
+    }.expect("Oh, some thing wrong with hash map");
+    if ret > 0 {
+        return Ok(ret);
+    }
     let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+
     process_gas_info::<A, S, Q>(data, &mut store,gas_info)?;
     let value = result?;
 
@@ -102,6 +116,10 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
         Some(data) => data,
         None => return Ok(0),
     };
+    data.state_cache.insert(key,CacheStore{
+        value: out_data.clone(),
+        gasInfo: gas_info,
+    });
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
 }
 

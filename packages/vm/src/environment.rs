@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use std::collections::BTreeMap;
 
 use derivative::Derivative;
 use wasmer::{AsStoreMut, Global, Instance as WasmerInstance, Memory, MemoryView, Value};
@@ -106,6 +107,11 @@ pub struct DebugInfo<'a> {
 //                            v                                          v
 pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 
+pub struct CacheStore{
+    pub value: Vec<u8>,
+    pub gasInfo : GasInfo,
+}
+
 /// A environment that provides access to the ContextData.
 /// The environment is clonable but clones access the same underlying data.
 pub struct Environment<A, S, Q> {
@@ -115,6 +121,7 @@ pub struct Environment<A, S, Q> {
     pub api: A,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
+    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -130,6 +137,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
+            state_cache: BTreeMap::new(),
         }
     }
 }
@@ -143,6 +151,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             api,
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
+            state_cache:BTreeMap::new(),
         }
     }
 
