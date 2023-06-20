@@ -59,6 +59,11 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+/// default gas cost for write
+const DEFAULT_WRITE_COST_FLAT: u64    = 2000;
+const DEFAULT_WRITE_COST_PER_BYTE: u64 = 30;
+const DEFAULT_GAS_MULTIPLIER: u64 = 38000000;
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -96,8 +101,8 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
 
     let cache = data.state_cache.get(&key);
     let ret = match cache {
-        Some(mut store_cache) => {
-            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gasInfo)?;
+        Some(store_cache) => {
+            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gas_info)?;
             write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value, value_ptr)
         }
         None => {
@@ -118,11 +123,21 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     };
     data.state_cache.insert(key,CacheStore{
         value: out_data.clone(),
-        gasInfo: gas_info,
+        gas_info: gas_info,
     });
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
 }
 
+pub fn consum_gas_cost<> (value_length: u32) -> GasInfo {
+    /// todo judge if gas_cost > gas_limit(out of gas)
+    let write_cost_flag = DEFAULT_WRITE_COST_FLAT;
+    /// todo judge if gas_cost > gas_limit(out of gas)
+    let write_cost_bytes = DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
+
+    let used_gas = (write_cost_flag + write_cost_bytes) * DEFAULT_GAS_MULTIPLIER;
+
+    GasInfo::with_externally_used(used_gas)
+}
 
 /// Writes a storage entry from Wasm memory into the VM's storage
 pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
@@ -130,6 +145,8 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     key_ptr: u32,
     value_ptr: u32,
 ) -> VmResult<()> {
+    println!("{:p}", &env);
+
     let (data, mut store) = env.data_and_store_mut();
 
     if data.is_storage_readonly() {
@@ -139,10 +156,30 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let (result, gas_info) =
-        data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
+
+
+    // println!("mem_size:{}", &data.memory(&mut store).data_size());
+    // println!("val_size:{}", value.len());
+    // println!("reg_size:{}", get_region_len(&data.memory(&mut store), key_ptr)?);
+    // println!("-----------------begin set:----------------------", );
+    // let (result, gas_info) =
+    //     data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
+    // println!("-----------------after set----------------------");
+    // println!("======dbset cost: {}, ex_used: {}", gas_info.cost, gas_info.externally_used);
+
+    println!("write, key:{:?}, val:{:?}", key, value);
+    data.store_dirty.insert(key.clone(), value.clone());
+
+    println!("st_dirty_len:{}", data.store_dirty.len());
+
+    let gas_info = consum_gas_cost(value.len() as u32);
+    println!("======cache cost: {}, ex_used: {}, val_len: {}", gas_info.cost, gas_info.externally_used, value.len() as u32);
+    data.state_cache.insert(key,CacheStore{
+        value: value.clone(),
+        gas_info: gas_info,
+    });
     process_gas_info(data, &mut store, gas_info)?;
-    result?;
+    //result?;
 
     Ok(())
 }
@@ -158,6 +195,8 @@ pub fn do_db_remove<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 
     }
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
+
+    data.state_cache.remove(&key);
 
     let (result, gas_info) =
         data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;

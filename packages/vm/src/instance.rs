@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -290,6 +290,21 @@ where
         &self.fe.as_ref(&self.store).api
     }
 
+    pub fn commit_store(&mut self) {
+        println!("==========commit_store!===========");
+
+        let mut env = self.fe.clone().into_mut(&mut self.store);
+        let (data, _) = env.data_and_store_mut();
+        println!("{:p}", &self.fe);
+        println!("state_cache_len:{}, store_dirty_len:{}", data.state_cache.len(), data.store_dirty.len());
+
+        for (key,value) in data.store_dirty.clone() {
+            println!("commit, key:{:?}, val:{:?}", key, value);
+            data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value))).expect("failed set store");
+        }
+        data.store_dirty.clear();
+    }
+
     /// Decomposes this instance into its components.
     /// External dependencies are returned for reuse, the rest is dropped.
     pub fn recycle(self) -> Option<Backend<A, S, Q>> {
@@ -454,7 +469,13 @@ where
         let mut fe_mut = self.fe.clone().into_mut(&mut self.store);
         let (env, mut store) = fe_mut.data_and_store_mut();
 
-        env.call_function1(&mut store, name, args)
+        println!("state_cache_len:{}, store_dirty_len:{}", env.state_cache.len(), env.store_dirty.len());
+
+        let result = env.call_function1(&mut store, name, args);
+
+        println!("state_cache_len:{}, store_dirty_len:{}", env.state_cache.len(), env.store_dirty.len());
+
+        result
     }
 }
 

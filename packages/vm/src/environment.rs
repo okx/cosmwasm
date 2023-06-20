@@ -107,9 +107,10 @@ pub struct DebugInfo<'a> {
 //                            v                                          v
 pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 
-pub struct CacheStore{
+#[derive(Clone)]
+pub struct CacheStore {
     pub value: Vec<u8>,
-    pub gasInfo : GasInfo,
+    pub gas_info: GasInfo,
 }
 
 /// A environment that provides access to the ContextData.
@@ -121,7 +122,8 @@ pub struct Environment<A, S, Q> {
     pub api: A,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
-    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
+    pub state_cache: BTreeMap<Vec<u8>, CacheStore>,
+    pub store_dirty: BTreeMap<Vec<u8>, Vec<u8>>,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -137,7 +139,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
-            state_cache: BTreeMap::new(),
+            state_cache: self.state_cache.clone(),
+            store_dirty: self.store_dirty.clone(),
         }
     }
 }
@@ -152,6 +155,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
             state_cache:BTreeMap::new(),
+            store_dirty:BTreeMap::new(),
         }
     }
 

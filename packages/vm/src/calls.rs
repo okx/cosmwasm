@@ -364,12 +364,15 @@ where
     Q: Querier + 'static,
 {
     instance.set_storage_readonly(false);
-    call_raw(
+    let result = call_raw(
         instance,
         "execute",
         &[env, info, msg],
         read_limits::RESULT_EXECUTE,
-    )
+    );
+    instance.commit_store();
+
+    result
 }
 
 /// Calls Wasm export "migrate" and returns raw data from the contract.
