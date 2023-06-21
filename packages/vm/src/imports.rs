@@ -102,7 +102,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let cache = data.state_cache.get(&key);
     let ret = match cache {
         Some(store_cache) => {
-            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gas_info)?;
+            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gasInfo)?;
             write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value, value_ptr)
         }
         None => {
@@ -123,7 +123,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     };
     data.state_cache.insert(key,CacheStore{
         value: out_data.clone(),
-        gas_info: gas_info,
+        gasInfo: gas_info,
         is_dirty: false,
     });
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
@@ -165,7 +165,7 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     let gas_info = consum_gas_cost(value.len() as u32, gas_limit);
     data.state_cache.insert(key,CacheStore{
         value: value.clone(),
-        gas_info: gas_info,
+        gasInfo: gas_info,
         is_dirty: true,
     });
     process_gas_info(data, &mut store, gas_info)?;

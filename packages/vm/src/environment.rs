@@ -110,7 +110,7 @@ pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 #[derive(Clone)]
 pub struct CacheStore {
     pub value: Vec<u8>,
-    pub gas_info: GasInfo,
+    pub gasInfo: GasInfo,
     pub is_dirty: bool,
 }
 
