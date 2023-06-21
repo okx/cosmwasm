@@ -153,6 +153,7 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     value_ptr: u32,
 ) -> VmResult<()> {
     let (data, mut store) = env.data_and_store_mut();
+
     if data.is_storage_readonly() {
         return Err(VmError::write_access_denied());
     }
@@ -169,7 +170,6 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
         is_dirty: true,
     });
     process_gas_info(data, &mut store, gas_info)?;
-    //result?;
 
     Ok(())
 }
