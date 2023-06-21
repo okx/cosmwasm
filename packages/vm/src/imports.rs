@@ -129,15 +129,21 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
 }
 
-pub fn consum_gas_cost<> (value_length: u32) -> GasInfo {
-    /// todo judge if gas_cost > gas_limit(out of gas)
-    let write_cost_flag = DEFAULT_WRITE_COST_FLAT;
-    /// todo judge if gas_cost > gas_limit(out of gas)
-    let write_cost_bytes = DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
+/// consum gas for set store to chain
+pub fn consum_gas_cost(value_length: u32, gas_limit: u64) -> GasInfo {
+    let mut write_cost = DEFAULT_WRITE_COST_FLAT;
+    if write_cost > gas_limit {
+        panic!("out of gas in location: WriteFlat; gasLimit: {}, gasUsed: {}", gas_limit, write_cost)
+    }
 
-    let used_gas = (write_cost_flag + write_cost_bytes) * DEFAULT_GAS_MULTIPLIER;
+    write_cost += DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
+    if write_cost > gas_limit {
+        panic!("out of gas in location: WritePerByte; gasLimit: {}, gasUsed: {}", gas_limit, write_cost)
+    }
 
-    GasInfo::with_externally_used(used_gas)
+    write_cost *= DEFAULT_GAS_MULTIPLIER;
+
+    GasInfo::with_externally_used(write_cost)
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
@@ -154,7 +160,9 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let gas_info = consum_gas_cost(value.len() as u32);
+
+    let gas_limit = data.with_gas_state_mut(|gas_state| {gas_state.gas_limit});
+    let gas_info = consum_gas_cost(value.len() as u32, gas_limit);
     data.state_cache.insert(key,CacheStore{
         value: value.clone(),
         gas_info: gas_info,
