@@ -75,6 +75,12 @@ extern "C" {
     /// Executes a query on the chain (import). Not to be confused with the
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
+
+    /// Executes a cross contract call
+    fn call(msg_ptr: u32, env_ptr: u32) -> u32;
+
+    // Executes a cross contract delegate_call
+    fn delegate_call(msg_ptr: u32, env_ptr: u32, caller_ptr: u32) -> u32;
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.

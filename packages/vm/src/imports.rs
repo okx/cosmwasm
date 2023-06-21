@@ -1,5 +1,6 @@
 //! Import implementations
 
+use std::borrow::Borrow;
 use std::cmp::max;
 
 use cosmwasm_crypto::{
@@ -8,6 +9,7 @@ use cosmwasm_crypto::{
 use cosmwasm_crypto::{
     ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, MESSAGE_HASH_MAX_LEN,
 };
+use cosmwasm_std::{Addr, Env};
 
 #[cfg(feature = "iterator")]
 use cosmwasm_std::Order;
@@ -23,7 +25,8 @@ use crate::sections::decode_sections;
 #[allow(unused_imports)]
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
-use crate::GasInfo;
+use crate::{call_execute, Checksum, from_slice, GasInfo, cache::Cache, Backend, InstanceOptions};
+use cosmwasm_std::{WasmMsg, MessageInfo, Coin, Binary};
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -56,6 +59,18 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
+
+/// max length call data
+const MAX_LENGTH_CALL_DATA: usize = 64 * KI;
+
+///  max length blockchain env
+const MAX_LENGTH_ENV: usize = 64 * KI;
+
+/// max call depth
+const Max_CALL_depth: u32 = 1024;
+
+/// caller address length
+const Max_CALLER_LENGTH: usize = 32;
 
 // Import implementations
 //
@@ -401,6 +416,129 @@ pub fn do_query_chain<A: BackendApi, S: Storage, Q: Querier>(
     let serialized = to_vec(&result?)?;
     write_to_contract::<A, S, Q>(env, &serialized)
 }
+
+pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    msg_ptr: u32,
+    env_ptr: u32, // or get from the go callback
+) -> VmResult<u32> {
+    if env.call_depth + 1 > Max_CALL_depth {
+        return Err(VmError::aborted("more than the max call depth"));
+    }
+    let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
+    let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
+
+    let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
+    let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
+    let call_msg: Binary;
+    let contract_address: String;
+    let vcoin: Vec<Coin>;
+    match calld {
+        WasmMsg::Execute { contract_addr, msg, funds} => {
+            call_msg = msg;
+            contract_address = contract_addr;
+            vcoin = funds;
+        }
+        _ => {
+           return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
+        }
+    }
+
+    // set messge info
+    let info = MessageInfo{
+        sender: Addr::unchecked(contract_address), // TODO check the address is sender
+        funds: vcoin.to_vec()};
+
+    // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
+    let cache: Cache<A, S, Q>; // get from callback
+    let checksum: Checksum;   // get from callback
+    let backend: Backend<A, S, Q> = Backend {
+        api: env.api,
+        storage: (), // get from callback should give contract address
+        querier: ()  // get from callback should give contract address
+    };
+
+    let options = InstanceOptions{
+        gas_limit: env.get_gas_left(),
+        print_debug: env.print_debug,
+    };
+
+    let mut new_instance = cache.get_instance(&checksum, backend, options)?;
+    new_instance.set_call_depth(env.call_depth + 1);
+
+    let result = call_execute(&mut new_instance, &benv, &info, call_msg.as_slice())?;
+
+    // set the gas
+    // let new_limit = left_gas - gas_consume;
+    // env.set_gas_left(new_limit);
+    process_gas_info::<A, S, Q>(env, GasInfo::with_cost(new_instance.get_gas_left()))?; // TODO need to handle gas in other func
+
+    let serialized = to_vec(&result)?;
+    write_to_contract::<A, S, Q>(env, &serialized)
+}
+
+pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    msg_ptr: u32,
+    env_ptr: u32, // or get from the go callback
+    caller_ptr: u32,
+) -> VmResult<u32> {
+    if env.call_depth + 1 > Max_CALL_depth {
+        return Err(VmError::aborted("more than the max call depth"));
+    }
+    let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
+    let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
+    let caller_data = read_region(&env.memory(), caller_ptr, Max_CALLER_LENGTH)?;
+
+    let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
+    let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
+    let call_msg: Binary;
+    let contract_address: String;
+    let vcoin: Vec<Coin>;
+    match calld {
+        WasmMsg::Execute { contract_addr, msg, funds} => {
+            call_msg = msg;
+            contract_address = contract_addr;
+            vcoin = funds;
+        }
+        _ => {
+            return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
+        }
+    }
+
+    // set messge info
+    let info = MessageInfo{
+        sender: Addr::unchecked(contract_address), // TODO check the address is sender
+        funds: vcoin.to_vec()};
+
+    // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
+    let cache: Cache<A, S, Q>; // get from callback
+    let checksum: Checksum;   // get from callback
+    let backend: Backend<A, S, Q> = Backend {
+        api: env.api,
+        storage: (), // get from callback should give caller address
+        querier: ()  // get from callback
+    };
+
+    let options = InstanceOptions{
+        gas_limit: env.get_gas_left(),
+        print_debug: env.print_debug,
+    };
+
+    let mut new_instance = cache.get_instance(&checksum, backend, options)?;
+    new_instance.set_call_depth(env.call_depth + 1);
+
+    let result = call_execute(&mut new_instance, &benv, &info, call_msg.as_slice())?;
+
+    // set the gas
+    // let new_limit = left_gas - gas_consume;
+    // env.set_gas_left(new_limit);
+    process_gas_info::<A, S, Q>(env, GasInfo::with_cost(new_instance.get_gas_left()))?; // TODO need to handle gas in other func
+
+    let serialized = to_vec(&result)?;
+    write_to_contract::<A, S, Q>(env, &serialized)
+}
+
 
 #[cfg(feature = "iterator")]
 pub fn do_db_scan<A: BackendApi, S: Storage, Q: Querier>(

@@ -76,6 +76,7 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub api: A,
     pub print_debug: bool,
     pub gas_config: GasConfig,
+    pub call_depth: u32,
     data: Arc<RwLock<ContextData<S, Q>>>,
 }
 
@@ -89,6 +90,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             api: self.api,
             print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
+            call_depth: self.call_depth,
             data: self.data.clone(),
         }
     }
@@ -106,6 +108,17 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             api,
             print_debug,
             gas_config: GasConfig::default(),
+            call_depth: 1,
+            data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
+        }
+    }
+
+    pub fn new_call_depth(api: A, gas_limit: u64, print_debug: bool, call_depth: u32) -> Self {
+        Environment {
+            api,
+            print_debug,
+            gas_config: GasConfig::default(),
+            call_depth: call_depth,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
         }
     }
