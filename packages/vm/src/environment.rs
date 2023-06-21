@@ -108,9 +108,15 @@ pub struct DebugInfo<'a> {
 pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 
 #[derive(Clone)]
+pub enum KeyType {
+    Read, Write, Remove,
+}
+
+#[derive(Clone)]
 pub struct CacheStore {
     pub value: Vec<u8>,
     pub gasInfo: GasInfo,
+    pub key_type: KeyType,
     pub is_dirty: bool,
 }
 

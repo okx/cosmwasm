@@ -10,7 +10,7 @@ use wasmer::{
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::Environment;
+use crate::environment::{Environment, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex, do_db_remove,
@@ -295,7 +295,16 @@ where
         let (data, _) = env.data_and_store_mut();
         for (key,cache_store) in data.state_cache.clone() {
             if cache_store.is_dirty {
-                data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store");
+                match cache_store.key_type {
+                    KeyType::Write => {
+                        data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store for set");
+                    }
+                    KeyType::Remove => {
+                        data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key))).expect("failed commit_store for remove");
+                    }
+                    _ => ()
+                }
+
                 data.state_cache.remove(&key);
             }
         }
