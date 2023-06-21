@@ -293,10 +293,12 @@ where
     pub fn commit_store(&mut self) {
         let mut env = self.fe.clone().into_mut(&mut self.store);
         let (data, _) = env.data_and_store_mut();
-        for (key,value) in data.store_dirty.clone() {
-            data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value))).expect("failed set store");
+        for (key,cache_store) in data.state_cache.clone() {
+            if cache_store.is_dirty {
+                data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store");
+                data.state_cache.remove(&key);
+            }
         }
-        data.store_dirty.clear();
     }
 
     /// Decomposes this instance into its components.
