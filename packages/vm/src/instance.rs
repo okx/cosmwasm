@@ -464,9 +464,7 @@ where
     pub(crate) fn call_function1(&mut self, name: &str, args: &[Value]) -> VmResult<Value> {
         let mut fe_mut = self.fe.clone().into_mut(&mut self.store);
         let (env, mut store) = fe_mut.data_and_store_mut();
-        let result = env.call_function1(&mut store, name, args);
-
-        result
+        env.call_function1(&mut store, name, args)
     }
 }
 
