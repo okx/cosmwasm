@@ -145,35 +145,16 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     key_ptr: u32,
     value_ptr: u32,
 ) -> VmResult<()> {
-    println!("{:p}", &env);
-
     let (data, mut store) = env.data_and_store_mut();
-
     if data.is_storage_readonly() {
         return Err(VmError::write_access_denied());
     }
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
-
-
-
-    // println!("mem_size:{}", &data.memory(&mut store).data_size());
-    // println!("val_size:{}", value.len());
-    // println!("reg_size:{}", get_region_len(&data.memory(&mut store), key_ptr)?);
-    // println!("-----------------begin set:----------------------", );
-    // let (result, gas_info) =
-    //     data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
-    // println!("-----------------after set----------------------");
-    // println!("======dbset cost: {}, ex_used: {}", gas_info.cost, gas_info.externally_used);
-
-    println!("write, key:{:?}, val:{:?}", key, value);
     data.store_dirty.insert(key.clone(), value.clone());
 
-    println!("st_dirty_len:{}", data.store_dirty.len());
-
     let gas_info = consum_gas_cost(value.len() as u32);
-    println!("======cache cost: {}, ex_used: {}, val_len: {}", gas_info.cost, gas_info.externally_used, value.len() as u32);
     data.state_cache.insert(key,CacheStore{
         value: value.clone(),
         gas_info: gas_info,

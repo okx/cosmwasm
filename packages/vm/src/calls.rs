@@ -1,3 +1,4 @@
+use std::result;
 use serde::de::DeserializeOwned;
 use wasmer::Value;
 
@@ -342,12 +343,15 @@ where
     Q: Querier + 'static,
 {
     instance.set_storage_readonly(false);
-    call_raw(
+    let result = call_raw(
         instance,
         "instantiate",
         &[env, info, msg],
         read_limits::RESULT_INSTANTIATE,
-    )
+    );
+    instance.commit_store();
+
+    result
 }
 
 /// Calls Wasm export "execute" and returns raw data from the contract.
