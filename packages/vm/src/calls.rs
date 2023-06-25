@@ -631,7 +631,7 @@ mod tests {
 
         // execute
         let info = mock_info("verifies", &coins(15, "earth"));
-        let msg = br#"{"other_opt":{"opt_type":"read","times":"10000000"}}"#;
+        let msg = br#"{"other_opt":{"opt_type":"write","times":"10000000"}}"#;
         let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();

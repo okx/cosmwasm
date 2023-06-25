@@ -172,9 +172,8 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let gas_limit = data.with_gas_state_mut(|gas_state| {gas_state.gas_limit});
-    let gas_info = consum_set_gas_cost(value.len() as u32, gas_limit);
-    data.state_cache.insert(key,CacheStore{
+    let gas_info = consum_set_gas_cost(value.len() as u32, data.with_gas_state_mut(|gas_state| {gas_state.gas_limit}));
+    data.state_cache.entry(key).or_insert(CacheStore{
         value: value.clone(),
         gasInfo: gas_info,
         key_type: KeyType::Write,
