@@ -15,7 +15,7 @@ use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex, do_db_remove,
     do_db_write, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
-    do_secp256k1_recover_pubkey, do_secp256k1_verify,
+    do_secp256k1_recover_pubkey, do_secp256k1_verify, do_create,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -236,6 +236,11 @@ where
         env_imports.insert(
             "db_next",
             Function::new_typed_with_env(&mut store, &fe, do_db_next),
+        );
+
+        env_imports.insert(
+            "create",
+            Function::new_typed_with_env(&mut store, &fe, do_create),
         );
 
         import_obj.register_namespace("env", env_imports);

@@ -155,6 +155,10 @@ pub trait Querier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult;
 }
 
+pub trait Contract {
+    fn create(&self);
+}
+
 #[derive(Clone)]
 pub struct QuerierWrapper<'a, C: CustomQuery = Empty> {
     querier: &'a dyn Querier,

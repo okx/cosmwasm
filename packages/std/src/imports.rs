@@ -74,6 +74,8 @@ extern "C" {
     /// Executes a query on the chain (import). Not to be confused with the
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
+
+    fn create();
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -395,6 +397,32 @@ impl Querier for ExternalQuerier {
                 response: response.into(),
             })
         })
+    }
+}
+
+/// A stateless convenience wrapper around database imports provided by the VM.
+pub struct ExternalContract {}
+
+impl ExternalContract {
+    pub fn new() -> ExternalContract {
+        ExternalContract {}
+    }
+}
+
+impl Contract for ExternalContract {
+    fn create(&self, code: &[u8]) -> Option<Vec<u8>> {
+        let key = build_region(key);
+        let key_ptr = &*key as *const Region as u32;
+
+        let read = unsafe { create() };
+        if read == 0 {
+            // key does not exist in external storage
+            return None;
+        }
+
+        let value_ptr = read as *mut Region;
+        let data = unsafe { consume_region(value_ptr) };
+        Some(data)
     }
 }
 

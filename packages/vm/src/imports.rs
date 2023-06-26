@@ -553,6 +553,19 @@ pub fn do_db_next<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
     write_to_contract(data, &mut store, &out_data)
 }
 
+pub fn do_create<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    code_ptr: u32,
+    init_msg_ptr: u32,
+    checksum_ptr: u32,
+) -> VmResult<u32> {
+    let (data, mut store) = env.data_and_store_mut();
+    let code = read_region(&data.memory(&mut store), code_ptr, MAX_LENGTH_ABORT)?;
+    let init_msg = read_region(&data.memory(&mut store), init_msg_ptr, MAX_LENGTH_ABORT)?;
+
+    Ok(123)
+}
+
 fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+ 'static>(
     data: &Environment<A, S, Q>,
     store: &mut impl AsStoreMut,
