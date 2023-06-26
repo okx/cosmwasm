@@ -450,13 +450,17 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
         funds: vcoin.to_vec()};
 
     // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
-    let cache: Cache<A, S, Q>; // get from callback
+    let cache: Cache<A, S, Q>; // get from callback// 获取cache
     let checksum: Checksum;   // get from callback
     let backend: Backend<A, S, Q> = Backend {
-        api: env.api,
+        api: env.api.clone(),
         storage: (), // get from callback should give contract address
         querier: ()  // get from callback should give contract address
     };
+    // 1. 可以先在wasmvm层面记录一个callID与content的对应关系，同时在wasmvm层记录给出获取keeper中cache的接口，然后在传入
+    // wasmvm中组装起来 instalce
+
+    // 2. 后面有时间再研究从env的query接口中获取content方法
 
     let options = InstanceOptions{
         gas_limit: env.get_gas_left(),
@@ -515,7 +519,7 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     let cache: Cache<A, S, Q>; // get from callback
     let checksum: Checksum;   // get from callback
     let backend: Backend<A, S, Q> = Backend {
-        api: env.api,
+        api: env.api.clone(),
         storage: (), // get from callback should give caller address
         querier: ()  // get from callback
     };
