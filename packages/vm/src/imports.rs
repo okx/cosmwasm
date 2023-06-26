@@ -11,7 +11,7 @@ use cosmwasm_crypto::{
 };
 
 #[cfg(feature = "iterator")]
-use cosmwasm_std::Order;
+use cosmwasm_std::{Order, Empty};
 use wasmer::{AsStoreMut, FunctionEnvMut};
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
@@ -25,7 +25,12 @@ use crate::sections::decode_sections;
 #[allow(unused_imports)]
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
-use crate::GasInfo;
+use crate::{Backend, GasInfo};
+use crate::Cache;
+use crate::CacheOptions;
+use tempfile::TempDir;
+use crate::calls::{call_instantiate};
+use crate::instance::InstanceOptions;
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -562,6 +567,31 @@ pub fn do_create<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'st
     let (data, mut store) = env.data_and_store_mut();
     let code = read_region(&data.memory(&mut store), code_ptr, MAX_LENGTH_ABORT)?;
     let init_msg = read_region(&data.memory(&mut store), init_msg_ptr, MAX_LENGTH_ABORT)?;
+
+    // 1. save wasm code
+    // TODO CacheOptions value is tmp
+    let options = CacheOptions {
+        base_dir: TempDir::new().unwrap().into_path(),
+        available_capabilities: default_capabilities(),
+        memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
+        instance_memory_limit: TESTING_MEMORY_LIMIT,
+    };
+    let cache = unsafe { Cache::new(options).unwrap() };
+    let checksum = cache.save_wasm(code.as_slice()).unwrap();
+
+    // 2. instantiate
+    let backend = Backend {
+        api:data.api,
+        storage:data.move_out().0 ,
+        querier:data.move_out().1,
+    };
+    let options = InstanceOptions {
+        gas_limit: 10, // TODO can come from arg?
+        print_debug: false,
+    };
+    let mut instance = cache.get_instance(&checksum, backend, options).unwrap();
+    let res = call_instantiate::<_, _, _, Empty>(&mut instance, data, &info, init_msg.as_slice()).unwrap();
+    let msgs = res.unwrap().messages;
 
     Ok(123)
 }
