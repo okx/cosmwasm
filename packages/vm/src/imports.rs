@@ -180,7 +180,6 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
         is_dirty: true,
     });
     process_gas_info(data, &mut store, gas_info)?;
-    result?;
 
     Ok(())
 }
