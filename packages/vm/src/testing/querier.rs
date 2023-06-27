@@ -1,4 +1,5 @@
 use serde::de::DeserializeOwned;
+use std::any::Any;
 
 use cosmwasm_std::testing::{MockQuerier as StdMockQuerier, MockQuerierCustomHandlerResult};
 use cosmwasm_std::{
@@ -61,7 +62,7 @@ impl<C: CustomQuery + DeserializeOwned> MockQuerier<C> {
     }
 }
 
-impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
+impl<C: CustomQuery + DeserializeOwned+ 'static> Querier for MockQuerier<C> {
     fn query_raw(
         &self,
         bin_request: &[u8],
@@ -83,6 +84,12 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
 
         // We don't use FFI in the mock implementation, so BackendResult is always Ok() regardless of error on other levels
         (Ok(response), gas_info)
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn generate_call_info(&self, contract_address: String) -> [u8; 32] {
+        todo!()
     }
 }
 

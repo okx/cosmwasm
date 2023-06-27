@@ -27,6 +27,7 @@ use crate::sections::encode_sections;
 use crate::serde::to_vec;
 use crate::{call_execute, Checksum, from_slice, GasInfo, cache::Cache, Backend, InstanceOptions};
 use cosmwasm_std::{WasmMsg, MessageInfo, Coin, Binary};
+use crate::testing::{MockQuerier, MockStorage};
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -425,6 +426,7 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
     if env.call_depth + 1 > Max_CALL_depth {
         return Err(VmError::aborted("more than the max call depth"));
     }
+    //return Ok(1);
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
 
@@ -446,16 +448,19 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
 
     // set messge info
     let info = MessageInfo{
-        sender: Addr::unchecked(contract_address), // TODO check the address is sender
+        sender: Addr::unchecked(contract_address.clone()), // TODO check the address is sender
         funds: vcoin.to_vec()};
+
+    let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
+        Ok(querier.generate_call_info(contract_address.clone()))
+    })?;
 
     // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
     let cache: Cache<A, S, Q>; // get from callback// 获取cache
-    let checksum: Checksum;   // get from callback
-    let backend: Backend<A, S, Q> = Backend {
+    let backend = Backend {
         api: env.api.clone(),
-        storage: (), // get from callback should give contract address
-        querier: ()  // get from callback should give contract address
+        storage: MockStorage::new(), // get from callback should give contract address
+        querier: MockQuerier::new(&[])  // get from callback should give contract address
     };
     // 1. 可以先在wasmvm层面记录一个callID与content的对应关系，同时在wasmvm层记录给出获取keeper中cache的接口，然后在传入
     // wasmvm中组装起来 instalce
@@ -467,7 +472,7 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
         print_debug: env.print_debug,
     };
 
-    let mut new_instance = cache.get_instance(&checksum, backend, options)?;
+    let mut new_instance = cache.get_instance(&Checksum::from(checksum), backend, options)?;
     new_instance.set_call_depth(env.call_depth + 1);
 
     let result = call_execute(&mut new_instance, &benv, &info, call_msg.as_slice())?;
@@ -490,6 +495,7 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     if env.call_depth + 1 > Max_CALL_depth {
         return Err(VmError::aborted("more than the max call depth"));
     }
+    //return Ok(1);
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
     let caller_data = read_region(&env.memory(), caller_ptr, Max_CALLER_LENGTH)?;
@@ -512,16 +518,18 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
 
     // set messge info
     let info = MessageInfo{
-        sender: Addr::unchecked(contract_address), // TODO check the address is sender
+        sender: Addr::unchecked(contract_address.clone()), // TODO check the address is sender
         funds: vcoin.to_vec()};
 
+    let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
+        Ok(querier.generate_call_info(contract_address.clone()))
+    })?;
     // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
     let cache: Cache<A, S, Q>; // get from callback
-    let checksum: Checksum;   // get from callback
     let backend: Backend<A, S, Q> = Backend {
         api: env.api.clone(),
-        storage: (), // get from callback should give caller address
-        querier: ()  // get from callback
+        storage: MockStorage::default(), // get from callback should give caller address
+        querier: MockQuerier::new(&[])  // get from callback
     };
 
     let options = InstanceOptions{
@@ -529,7 +537,7 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
         print_debug: env.print_debug,
     };
 
-    let mut new_instance = cache.get_instance(&checksum, backend, options)?;
+    let mut new_instance = cache.get_instance(&Checksum::from(checksum), backend, options)?;
     new_instance.set_call_depth(env.call_depth + 1);
 
     let result = call_execute(&mut new_instance, &benv, &info, call_msg.as_slice())?;
