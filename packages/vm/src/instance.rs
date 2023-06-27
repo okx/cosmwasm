@@ -293,7 +293,7 @@ where
     pub fn commit_store(&mut self) {
         let mut env = self.fe.clone().into_mut(&mut self.store);
         let (data, _) = env.data_and_store_mut();
-        for (key,cache_store) in data.state_cache {
+        for (key,cache_store) in data.state_cache.clone() {
             if cache_store.is_dirty {
                 data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store for set");
             }
