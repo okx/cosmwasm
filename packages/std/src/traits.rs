@@ -23,6 +23,7 @@ use crate::query::{
 use crate::results::{ContractResult, Empty, SystemResult};
 use crate::serde::{from_binary, to_binary, to_vec};
 use crate::ContractInfoResponse;
+use crate::Env;
 
 /// Storage provides read and write access to a persistent storage.
 /// If you only want to provide read access, provide `&Storage`
@@ -141,6 +142,8 @@ pub trait Api {
     /// Emits a debugging message that is handled depending on the environment (typically printed to console or ignored).
     /// Those messages are not persisted to chain.
     fn debug(&self, message: &str);
+
+    fn create(&self, env: Env, code: &[u8], init_msg: &[u8])-> Option<Vec<u8>>;
 }
 
 /// A short-hand alias for the two-level query result (1. accessing the contract, 2. executing query in the contract)
@@ -153,10 +156,6 @@ pub trait Querier {
     /// types. People using the querier probably want one of the simpler auto-generated
     /// helper methods
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult;
-}
-
-pub trait Contract {
-    fn create(&self);
 }
 
 #[derive(Clone)]

@@ -2,7 +2,7 @@
 
 use std::cmp::max;
 use std::marker::PhantomData;
-
+use tempfile::TempDir;
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
 };
@@ -11,7 +11,7 @@ use cosmwasm_crypto::{
 };
 
 #[cfg(feature = "iterator")]
-use cosmwasm_std::{Order, Empty};
+use cosmwasm_std::{Order, Empty, MessageInfo, Addr, coins, Env};
 use wasmer::{AsStoreMut, FunctionEnvMut};
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
@@ -24,13 +24,14 @@ use crate::memory::{read_region, write_region};
 use crate::sections::decode_sections;
 #[allow(unused_imports)]
 use crate::sections::encode_sections;
-use crate::serde::to_vec;
+use crate::serde::{to_vec, from_slice};
 use crate::{Backend, GasInfo};
 use crate::Cache;
 use crate::CacheOptions;
-use tempfile::TempDir;
 use crate::calls::{call_instantiate};
 use crate::instance::InstanceOptions;
+use crate::size::Size;
+use crate::capabilities::capabilities_from_csv;
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -560,11 +561,16 @@ pub fn do_db_next<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
 
 pub fn do_create<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
     mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    env_ptr: u32,
     code_ptr: u32,
     init_msg_ptr: u32,
     checksum_ptr: u32,
-) -> VmResult<u32> {
+) -> VmResult<()> {
     let (data, mut store) = env.data_and_store_mut();
+
+    let tx_env = read_region(&data.memory(&mut store), env_ptr, MAX_LENGTH_ABORT)?;
+    let tx_env: Env = from_slice(&tx_env, 250*1024).unwrap();
+
     let code = read_region(&data.memory(&mut store), code_ptr, MAX_LENGTH_ABORT)?;
     let init_msg = read_region(&data.memory(&mut store), init_msg_ptr, MAX_LENGTH_ABORT)?;
 
@@ -572,28 +578,47 @@ pub fn do_create<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'st
     // TODO CacheOptions value is tmp
     let options = CacheOptions {
         base_dir: TempDir::new().unwrap().into_path(),
-        available_capabilities: default_capabilities(),
-        memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
-        instance_memory_limit: TESTING_MEMORY_LIMIT,
+        available_capabilities: capabilities_from_csv("iterator,staking"),
+        memory_cache_size:  Size::mebi(200),
+        instance_memory_limit: Size::mebi(16),
     };
     let cache = unsafe { Cache::new(options).unwrap() };
     let checksum = cache.save_wasm(code.as_slice()).unwrap();
 
     // 2. instantiate
+    let (Some(storage), Some(querier)) = data.move_out() else { todo!() };
     let backend = Backend {
-        api:data.api,
-        storage:data.move_out().0 ,
-        querier:data.move_out().1,
+        api: data.api,
+        storage: storage ,
+        querier: querier,
     };
     let options = InstanceOptions {
         gas_limit: 10, // TODO can come from arg?
         print_debug: false,
     };
+    // TODO
+    let info = MessageInfo {
+        sender: Addr::unchecked("sender"),
+        funds: (&coins(1000, "earth")).to_vec(),
+    };
     let mut instance = cache.get_instance(&checksum, backend, options).unwrap();
-    let res = call_instantiate::<_, _, _, Empty>(&mut instance, data, &info, init_msg.as_slice()).unwrap();
-    let msgs = res.unwrap().messages;
+    let res = call_instantiate::<_, _, _, Empty>(&mut instance, &tx_env, &info, init_msg.as_slice()).unwrap();
+    // ignore message
+    // let msgs = res.unwrap().messages;
 
-    Ok(123)
+    // TODO gas
+    // process_gas_info(data, &mut store, gas_info)?;
+
+    // set contract addr
+    if res.into_result().is_ok() {
+      return write_region(
+            &data.memory(&mut store),
+            checksum_ptr,
+            checksum.to_hex().as_bytes(),
+        )
+    }
+
+    Ok(())
 }
 
 fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+ 'static>(

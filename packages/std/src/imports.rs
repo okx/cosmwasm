@@ -15,6 +15,7 @@ use crate::{
     iterator::{Order, Record},
     memory::get_optional_region_address,
 };
+use crate::Env;
 
 /// An upper bound for typical canonical address lengths (e.g. 20 in Cosmos SDK/Ethereum or 32 in Nano/Substrate)
 const CANONICAL_ADDRESS_BUFFER_LENGTH: usize = 64;
@@ -75,7 +76,7 @@ extern "C" {
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
 
-    fn create();
+    fn create(env: &Env, code_ptr: u32, init_msg_ptr: u32, checksum_ptr: u32) -> VmResult<()>;
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -364,6 +365,34 @@ impl Api for ExternalApi {
         let region_ptr = region.as_ref() as *const Region as u32;
         unsafe { debug(region_ptr) };
     }
+
+    fn create(&self, env: Env, code: &[u8], init_msg: &[u8]) -> Option<Vec<u8>> {
+        let env = build_region(env);
+        let env_ptr = &*env as *const Region as u32;
+
+        let code = build_region(code);
+        let code_ptr = &*code as *const Region as u32;
+
+        let init_msg = build_region(init_msg);
+        let init_msg_ptr = &*init_msg as *const Region as u32;
+
+        let checksum = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
+
+        let mut value = build_region(value);
+        let value_ptr = &mut *value as *mut Region as u32;
+
+        let result = unsafe { create(env_ptr, code_ptr, init_msg_ptr, checksum as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "addr_humanize errored: {}",
+                error
+            )));
+        }
+
+        let address = unsafe { consume_string_region_written_by_vm(human) };
+        Ok(Addr::unchecked(address))
+    }
 }
 
 /// Takes a pointer to a Region and reads the data into a String.
@@ -397,32 +426,6 @@ impl Querier for ExternalQuerier {
                 response: response.into(),
             })
         })
-    }
-}
-
-/// A stateless convenience wrapper around database imports provided by the VM.
-pub struct ExternalContract {}
-
-impl ExternalContract {
-    pub fn new() -> ExternalContract {
-        ExternalContract {}
-    }
-}
-
-impl Contract for ExternalContract {
-    fn create(&self, code: &[u8]) -> Option<Vec<u8>> {
-        let key = build_region(key);
-        let key_ptr = &*key as *const Region as u32;
-
-        let read = unsafe { create() };
-        if read == 0 {
-            // key does not exist in external storage
-            return None;
-        }
-
-        let value_ptr = read as *mut Region;
-        let data = unsafe { consume_region(value_ptr) };
-        Some(data)
     }
 }
 

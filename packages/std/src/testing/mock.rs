@@ -228,6 +228,10 @@ impl Api for MockApi {
     fn debug(&self, message: &str) {
         println!("{}", message);
     }
+
+    fn create(&self, env: Env, code: &[u8], init_msg: &[u8]) -> Option<Vec<u8>>{
+        None
+    }
 }
 
 /// Returns a default enviroment with height, time, chain_id, and contract address
