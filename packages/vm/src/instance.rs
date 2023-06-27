@@ -290,6 +290,18 @@ where
         &self.fe.as_ref(&self.store).api
     }
 
+    pub fn commit_store(&mut self) {
+        let mut env = self.fe.clone().into_mut(&mut self.store);
+        let (data, _) = env.data_and_store_mut();
+        for (key,cache_store) in data.state_cache {
+            if cache_store.is_dirty {
+                data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store for set");
+            }
+
+            data.state_cache.remove(&key);
+        }
+    }
+
     /// Decomposes this instance into its components.
     /// External dependencies are returned for reuse, the rest is dropped.
     pub fn recycle(self) -> Option<Backend<A, S, Q>> {

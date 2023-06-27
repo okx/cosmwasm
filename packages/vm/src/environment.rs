@@ -110,6 +110,7 @@ pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 pub struct CacheStore{
     pub value: Vec<u8>,
     pub gasInfo : GasInfo,
+    pub is_dirty: bool,
 }
 
 /// A environment that provides access to the ContextData.

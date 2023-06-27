@@ -59,6 +59,12 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+/// default gas cost for write
+const DEFAULT_WRITE_COST_FLAT: u64    = 2000;
+const DEFAULT_WRITE_COST_PER_BYTE: u64 = 30;
+const DEFAULT_DELETE_COST: u64 = 1000;
+const DEFAULT_GAS_MULTIPLIER: u64 = 38000000;
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -119,10 +125,36 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     data.state_cache.insert(key,CacheStore{
         value: out_data.clone(),
         gasInfo: gas_info,
+        is_dirty: false,
     });
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
 }
 
+/// consum gas for set store to chain
+pub fn consum_set_gas_cost(value_length: u32, gas_limit: u64) -> GasInfo {
+    let mut used_gas = DEFAULT_WRITE_COST_FLAT;
+    if used_gas > gas_limit {
+        panic!("out of gas in location: WriteFlat; gasLimit: {}, gasUsed: {}", gas_limit, used_gas)
+    }
+
+    used_gas += DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
+    if used_gas > gas_limit {
+        panic!("out of gas in location: WritePerByte; gasLimit: {}, gasUsed: {}", gas_limit, used_gas)
+    }
+
+    used_gas *= DEFAULT_GAS_MULTIPLIER;
+
+    GasInfo::with_externally_used(used_gas)
+}
+
+/// consum gas for remove store to chain
+pub fn consum_remove_gas_cost(gas_limit: u64) -> GasInfo {
+    let used_gas = DEFAULT_DELETE_COST;
+    if used_gas > gas_limit {
+        panic!("out of gas in location: Delete; gasLimit: {}, gasUsed: {}", gas_limit, used_gas)
+    }
+    GasInfo::with_externally_used(used_gas)
+}
 
 /// Writes a storage entry from Wasm memory into the VM's storage
 pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
@@ -139,8 +171,14 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let (result, gas_info) =
-        data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
+    // let (result, gas_info) =
+    //     data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
+    let gas_info = consum_set_gas_cost(value.len() as u32, data.with_gas_state_mut(|gas_state| {gas_state.gas_limit}));
+    data.state_cache.entry(key).or_insert(CacheStore{
+        value: value.clone(),
+        gasInfo: gas_info,
+        is_dirty: true,
+    });
     process_gas_info(data, &mut store, gas_info)?;
     result?;
 
