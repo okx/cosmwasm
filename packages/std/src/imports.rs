@@ -76,7 +76,7 @@ extern "C" {
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
 
-    fn create(env: &Env, code_ptr: u32, init_msg_ptr: u32, checksum_ptr: u32) -> VmResult<()>;
+    fn create(env_ptr: u32, code_ptr: u32, init_msg_ptr: u32, checksum_ptr: u32) -> u32;
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -366,7 +366,7 @@ impl Api for ExternalApi {
         unsafe { debug(region_ptr) };
     }
 
-    fn create(&self, env: Env, code: &[u8], init_msg: &[u8]) -> Option<Vec<u8>> {
+    fn create(&self, env: &[u8], code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
         let env = build_region(env);
         let env_ptr = &*env as *const Region as u32;
 
@@ -378,19 +378,16 @@ impl Api for ExternalApi {
 
         let checksum = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
 
-        let mut value = build_region(value);
-        let value_ptr = &mut *value as *mut Region as u32;
-
         let result = unsafe { create(env_ptr, code_ptr, init_msg_ptr, checksum as u32) };
         if result != 0 {
-            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
-            return Err(StdError::generic_err(format!(
-                "addr_humanize errored: {}",
-                error
-            )));
+            // let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            // return Err(StdError::generic_err(format!(
+            //     "addr_humanize errored: {}",
+            //     error
+            // )));
         }
 
-        let address = unsafe { consume_string_region_written_by_vm(human) };
+        let address = unsafe { consume_string_region_written_by_vm(checksum) };
         Ok(Addr::unchecked(address))
     }
 }

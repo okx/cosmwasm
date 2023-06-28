@@ -749,6 +749,7 @@ mod tests {
                 "ed25519_batch_verify" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_typed(&mut store, |_a: u32| {}),
                 "abort" => Function::new_typed(&mut store, |_a: u32| {}),
+                "create" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32, _d: u32| -> u32 { 0 }),
             },
         };
         let wasmer_instance =
