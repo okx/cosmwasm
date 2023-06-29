@@ -110,6 +110,7 @@ pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 pub struct CacheStore{
     pub value: Vec<u8>,
     pub gasInfo : GasInfo,
+    pub ret : u32
 }
 
 /// A environment that provides access to the ContextData.
@@ -121,7 +122,7 @@ pub struct Environment<A, S, Q> {
     pub api: A,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
-    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
+    pub state_cache:BTreeMap<u32, CacheStore>,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
