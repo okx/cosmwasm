@@ -133,6 +133,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
         gasInfo: gas_info,
         ret:tt
     });
+    println!("fuck--");
     return Ok(tt);
 }
 
