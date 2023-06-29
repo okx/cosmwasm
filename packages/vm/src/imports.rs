@@ -94,15 +94,11 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let (data, mut store) = env.data_and_store_mut();
     let cache = data.state_cache.get(&key_ptr);
     if cache.is_some(){
-        // return Ok(0)
+        //TODO handle gas
         return Ok(cache.unwrap().ret)
     }
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    // let cache = data.state_cache.get(&key);
-    // if cache.is_some(){
-    //     return Ok(cache.unwrap().ret)
-    // }
     let ret = match cache {
         Some(mut store_cache) => {
             process_gas_info::<A, S, Q>(data, &mut store, store_cache.gasInfo)?;
