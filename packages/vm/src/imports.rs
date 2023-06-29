@@ -96,6 +96,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
 
     match cache {
         Some(mut store_cache) =>{
+            println!("hahaha");
             return Ok(store_cache.ret)
         }
 
