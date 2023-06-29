@@ -93,9 +93,13 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
 ) -> VmResult<u32> {
     let (data, mut store) = env.data_and_store_mut();
     let cache = data.state_cache.get(&key_ptr);
-    if cache.is_some(){
-        //TODO handle gas
-        return Ok(cache.unwrap().ret)
+
+    match cache {
+        Some(mut store_cache) =>{
+            return Ok(store_cache.ret)
+        }
+
+        _ => {}
     }
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
@@ -108,6 +112,8 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
             Ok(0)
         }
     }.expect("Oh, some thing wrong with hash map");
+
+
     if ret > 0 {
         return Ok(ret);
     }
