@@ -16,7 +16,7 @@ use wasmer::{AsStoreMut, FunctionEnvMut};
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{process_gas_info, DebugInfo, Environment, CacheStore};
+use crate::environment::{process_gas_info, DebugInfo, Environment, CacheStore, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 #[cfg(feature = "iterator")]
 use crate::memory::maybe_read_region;
@@ -125,6 +125,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     data.state_cache.insert(key,CacheStore{
         value: out_data.clone(),
         gasInfo: gas_info,
+        key_type: KeyType::Read,
         is_dirty: false,
     });
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
@@ -177,6 +178,7 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     data.state_cache.entry(key).or_insert(CacheStore{
         value: value.clone(),
         gasInfo: gas_info,
+        key_type: KeyType::Write,
         is_dirty: true,
     });
     process_gas_info(data, &mut store, gas_info)?;
@@ -196,10 +198,17 @@ pub fn do_db_remove<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let (result, gas_info) =
-        data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
+    // let (result, gas_info) =
+    //     data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
+    let gas_limit = data.with_gas_state_mut(|gas_state| {gas_state.gas_limit});
+    let gas_info = consum_remove_gas_cost(gas_limit);
+    data.state_cache.entry(key).or_insert(CacheStore{
+        value: Vec::default(),
+        gasInfo: gas_info,
+        key_type: KeyType::Remove,
+        is_dirty: true,
+    });
     process_gas_info(data, &mut store, gas_info)?;
-    result?;
 
     Ok(())
 }
