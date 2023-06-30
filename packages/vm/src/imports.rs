@@ -132,29 +132,29 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
 }
 
 /// consum gas for set store to chain
-pub fn consum_set_gas_cost(value_length: u32, gas_limit: u64) -> GasInfo {
+pub fn consum_set_gas_cost(value_length: u32, gas_limit: u64) -> Result<GasInfo, ()> {
     let mut used_gas = DEFAULT_WRITE_COST_FLAT;
     if used_gas > gas_limit {
-        panic!("out of gas in location: WriteFlat; gasLimit: {}, gasUsed: {}", gas_limit, used_gas)
+        return Err(());
     }
 
     used_gas += DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
     if used_gas > gas_limit {
-        panic!("out of gas in location: WritePerByte; gasLimit: {}, gasUsed: {}", gas_limit, used_gas)
+        return Err(());
     }
 
     used_gas *= DEFAULT_GAS_MULTIPLIER;
 
-    GasInfo::with_externally_used(used_gas)
+    Ok(GasInfo::with_externally_used(used_gas))
 }
 
 /// consum gas for remove store to chain
-pub fn consum_remove_gas_cost(gas_limit: u64) -> GasInfo {
+pub fn consum_remove_gas_cost(gas_limit: u64) -> Result<GasInfo, ()> {
     let used_gas = DEFAULT_DELETE_COST;
     if used_gas > gas_limit {
-        panic!("out of gas in location: Delete; gasLimit: {}, gasUsed: {}", gas_limit, used_gas)
+        return Err(());
     }
-    GasInfo::with_externally_used(used_gas)
+    Ok(GasInfo::with_externally_used(used_gas))
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
@@ -172,16 +172,23 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    // let (result, gas_info) =
-    //     data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
-    let gas_info = consum_set_gas_cost(value.len() as u32, data.with_gas_state_mut(|gas_state| {gas_state.gas_limit}));
-    data.state_cache.entry(key).or_insert(CacheStore{
-        value: value.clone(),
-        gasInfo: gas_info,
-        key_type: KeyType::Write,
-        is_dirty: true,
-    });
-    process_gas_info(data, &mut store, gas_info)?;
+    match consum_set_gas_cost(value.len() as u32, data.with_gas_state_mut(|gas_state| {gas_state.gas_limit})) {
+        Ok(gas_info) => {
+            data.state_cache.entry(key).or_insert(CacheStore{
+                value: value.clone(),
+                gasInfo: gas_info,
+                key_type: KeyType::Write,
+                is_dirty: true,
+            });
+            process_gas_info(data, &mut store, gas_info)?;
+        }
+        Err(e) => {
+            let (result, gas_info) =
+                data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
+            process_gas_info(data, &mut store, gas_info)?;
+            result?;
+        }
+    }
 
     Ok(())
 }
@@ -198,17 +205,24 @@ pub fn do_db_remove<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    // let (result, gas_info) =
-    //     data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
     let gas_limit = data.with_gas_state_mut(|gas_state| {gas_state.gas_limit});
-    let gas_info = consum_remove_gas_cost(gas_limit);
-    data.state_cache.entry(key).or_insert(CacheStore{
-        value: Vec::default(),
-        gasInfo: gas_info,
-        key_type: KeyType::Remove,
-        is_dirty: true,
-    });
-    process_gas_info(data, &mut store, gas_info)?;
+    match consum_remove_gas_cost(gas_limit) {
+        Ok(gas_info) => {
+            data.state_cache.entry(key).or_insert(CacheStore{
+                value: Vec::default(),
+                gasInfo: gas_info,
+                key_type: KeyType::Remove,
+                is_dirty: true,
+            });
+            process_gas_info(data, &mut store, gas_info)?;
+        },
+        Err(e) => {
+            let (result, gas_info) =
+                 data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
+            process_gas_info(data, &mut store, gas_info)?;
+            result?;
+        }
+    }
 
     Ok(())
 }
