@@ -12,6 +12,7 @@ use cosmwasm_std::{
 use crate::backend::{BackendApi, Querier, Storage};
 use crate::conversion::ref_to_u32;
 use crate::errors::{VmError, VmResult};
+use crate::imports::{get_all_time, reset_db_read};
 use crate::instance::Instance;
 use crate::serde::{from_slice, to_vec};
 
@@ -574,6 +575,7 @@ where
     S: Storage + 'static,
     Q: Querier + 'static,
 {
+    reset_db_read();
     let mut arg_region_ptrs = Vec::<Value>::with_capacity(args.len());
     for arg in args {
         let region_ptr = instance.allocate(arg.len())?;
@@ -585,6 +587,8 @@ where
     let data = instance.read_memory(res_region_ptr, result_max_length)?;
     // free return value in wasm (arguments were freed in wasm code)
     instance.deallocate(res_region_ptr)?;
+    let (db_cnt,all_read_ts)=get_all_time();
+    println!("db_cnt {:?} all_read_ts {:?}",db_cnt,all_read_ts);
     Ok(data)
 }
 

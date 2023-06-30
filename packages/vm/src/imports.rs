@@ -2,6 +2,7 @@
 
 use std::cmp::max;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
@@ -86,17 +87,41 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
     write_to_contract(data, &mut store, &out_data)
 }
 
+/// cbindgen:ignore
+pub static mut DB_READ_CNT: u128 = 0;
+pub static mut DB_READ_ALL_TIME: u128 = 0;
+pub static mut MS:u128=1000*1000;
+/// cbindgen:ignore
+pub fn get_all_time()->(u128,u128){
+    unsafe {
+        (DB_READ_CNT,DB_READ_ALL_TIME/ MS)
+    }
+}
+pub fn reset_db_read(){
+    unsafe {
+        DB_READ_CNT =0;
+        DB_READ_ALL_TIME =0;
+    }
+}
+fn update_db_read_all_time(value: u128) {
+    unsafe {
+        DB_READ_ALL_TIME += value;
+        DB_READ_CNT +=1
+    }
+}
+
 pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
     mut env: FunctionEnvMut<Environment<A, S, Q>>,
     key_ptr: u32,
     value_ptr:u32,
 ) -> VmResult<u32> {
+    let start=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
     let cache = data.state_cache.get(&key_ptr);
 
     match cache {
         Some(mut store_cache) =>{
-            println!("hahaha---");
+            update_db_read_all_time(start.elapsed().as_nanos());
             return Ok(store_cache.ret)
         }
 
@@ -133,7 +158,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
         gasInfo: gas_info,
         ret:tt
     });
-    println!("fuck--");
+    update_db_read_all_time(start.elapsed().as_nanos());
     return Ok(tt);
 }
 
