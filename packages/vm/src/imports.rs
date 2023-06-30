@@ -115,6 +115,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     key_ptr: u32,
     value_ptr:u32,
 ) -> VmResult<u32> {
+    println!("key-ptr {:?} {:?}",key_ptr,value_ptr);
     let start=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
     let cache = data.state_cache.get(&key_ptr);
@@ -122,7 +123,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     match cache {
         Some(mut store_cache) =>{
             update_db_read_all_time(start.elapsed().as_nanos());
-            println!("sss {:?}",store_cache.ret);
+            println!("sss {:?} ",store_cache.ret);
             return Ok(store_cache.ret)
         }
 
