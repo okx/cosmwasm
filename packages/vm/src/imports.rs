@@ -119,14 +119,15 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let (data, mut store) = env.data_and_store_mut();
     let cache = data.state_cache.get(&key_ptr);
 
-    // match cache {
-    //     Some(mut store_cache) =>{
-    //         update_db_read_all_time(start.elapsed().as_nanos());
-    //         return Ok(store_cache.ret)
-    //     }
-    //
-    //     _ => {}
-    // }
+    match cache {
+        Some(mut store_cache) =>{
+            update_db_read_all_time(start.elapsed().as_nanos());
+            println!("sss {:?}",store_cache.ret);
+            return Ok(store_cache.ret)
+        }
+
+        _ => {}
+    }
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
     let ret = match cache {
