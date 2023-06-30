@@ -121,7 +121,7 @@ pub struct Environment<A, S, Q> {
     pub api: A,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
-    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
+    pub state_cache:BTreeMap<u32, CacheStore>,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
