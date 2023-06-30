@@ -13,6 +13,7 @@ use cosmwasm_crypto::{
 #[cfg(feature = "iterator")]
 use cosmwasm_std::{Order, Empty, MessageInfo, Addr, coins, Env};
 use wasmer::{AsStoreMut, FunctionEnvMut};
+use cosmwasm_std::BlockInfo;
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
@@ -78,7 +79,6 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
     key_ptr: u32,
 ) -> VmResult<u32> {
     let (data, mut store) = env.data_and_store_mut();
-
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
     let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
@@ -119,7 +119,6 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     value_ptr: u32,
 ) -> VmResult<()> {
     let (data, mut store) = env.data_and_store_mut();
-
     if data.is_storage_readonly() {
         return Err(VmError::write_access_denied());
     }
@@ -568,55 +567,75 @@ pub fn do_create<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'st
 ) -> VmResult<()> {
     let (data, mut store) = env.data_and_store_mut();
 
+    // let gas_remaining = data.get_gas_left(&mut store);
+    // let (result, gas_info) = data.with_querier_from_context::<_, _>(|querier| {
+    //     Ok(querier.create_before("sdsd".as_bytes(), gas_remaining))
+    // })?;
+    // let serialized = to_vec(&result?)?;
+    //
+    // println!("{}",serialized.len());
+    let env1: Env = Env {
+        block: BlockInfo{
+            height: 0,
+            time: Default::default(),
+            chain_id: "".to_string(),
+        },
+        transaction: None,
+        contract: cosmwasm_std::ContractInfo { address: Addr::unchecked("sender") },
+    };
+    let env2 = cosmwasm_std::to_vec(&env1).unwrap();
+    println!("{:?}",env2);
+
     let tx_env = read_region(&data.memory(&mut store), env_ptr, MAX_LENGTH_ABORT)?;
-    let tx_env: Env = from_slice(&tx_env, 250*1024).unwrap();
-
-    let code = read_region(&data.memory(&mut store), code_ptr, MAX_LENGTH_ABORT)?;
-    let init_msg = read_region(&data.memory(&mut store), init_msg_ptr, MAX_LENGTH_ABORT)?;
-
-    // 1. save wasm code
-    // TODO CacheOptions value is tmp
-    let options = CacheOptions {
-        base_dir: TempDir::new().unwrap().into_path(),
-        available_capabilities: capabilities_from_csv("iterator,staking"),
-        memory_cache_size:  Size::mebi(200),
-        instance_memory_limit: Size::mebi(16),
-    };
-    let cache = unsafe { Cache::new(options).unwrap() };
-    let checksum = cache.save_wasm(code.as_slice()).unwrap();
-
-    // 2. instantiate
-    let (Some(storage), Some(querier)) = data.move_out() else { todo!() };
-    let backend = Backend {
-        api: data.api,
-        storage: storage ,
-        querier: querier,
-    };
-    let options = InstanceOptions {
-        gas_limit: 10, // TODO can come from arg?
-        print_debug: false,
-    };
-    // TODO
-    let info = MessageInfo {
-        sender: Addr::unchecked("sender"),
-        funds: (&coins(1000, "earth")).to_vec(),
-    };
-    let mut instance = cache.get_instance(&checksum, backend, options).unwrap();
-    let res = call_instantiate::<_, _, _, Empty>(&mut instance, &tx_env, &info, init_msg.as_slice()).unwrap();
-    // ignore message
-    // let msgs = res.unwrap().messages;
-
-    // TODO gas
-    // process_gas_info(data, &mut store, gas_info)?;
-
-    // set contract addr
-    if res.into_result().is_ok() {
-      return write_region(
-            &data.memory(&mut store),
-            checksum_ptr,
-            checksum.to_hex().as_bytes(),
-        )
-    }
+    println!("{:?}",tx_env);
+    let tx_env: Env = cosmwasm_std::from_slice::<Env>(&tx_env).unwrap();
+    println!("{}",tx_env.block.chain_id);
+    // let code = read_region(&data.memory(&mut store), code_ptr, MAX_LENGTH_ABORT)?;
+    // let init_msg = read_region(&data.memory(&mut store), init_msg_ptr, MAX_LENGTH_ABORT)?;
+    //
+    // // 1. save wasm code
+    // // TODO CacheOptions value is tmp
+    // let options = CacheOptions {
+    //     base_dir: TempDir::new().unwrap().into_path(),
+    //     available_capabilities: capabilities_from_csv("iterator,staking"),
+    //     memory_cache_size:  Size::mebi(200),
+    //     instance_memory_limit: Size::mebi(16),
+    // };
+    // let cache = unsafe { Cache::new(options).unwrap() };
+    // let checksum = cache.save_wasm(code.as_slice()).unwrap();
+    //
+    // // 2. instantiate
+    // let (Some(storage), Some(querier)) = data.move_out() else { todo!() };
+    // let backend = Backend {
+    //     api: data.api,
+    //     storage: storage ,
+    //     querier: querier,
+    // };
+    // let options = InstanceOptions {
+    //     gas_limit: 10, // TODO can come from arg?
+    //     print_debug: false,
+    // };
+    // // TODO
+    // let info = MessageInfo {
+    //     sender: Addr::unchecked("sender"),
+    //     funds: (&coins(1000, "earth")).to_vec(),
+    // };
+    // let mut instance = cache.get_instance(&checksum, backend, options).unwrap();
+    // let res = call_instantiate::<_, _, _, Empty>(&mut instance, &tx_env, &info, init_msg.as_slice()).unwrap();
+    // // ignore message
+    // // let msgs = res.unwrap().messages;
+    //
+    // // TODO gas
+    // // process_gas_info(data, &mut store, gas_info)?;
+    //
+    // // set contract addr
+    // if res.into_result().is_ok() {
+    //   return write_region(
+    //         &data.memory(&mut store),
+    //         checksum_ptr,
+    //         checksum.to_hex().as_bytes(),
+    //     )
+    // }
 
     Ok(())
 }

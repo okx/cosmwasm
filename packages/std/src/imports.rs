@@ -8,14 +8,15 @@ use crate::results::SystemResult;
 #[cfg(feature = "iterator")]
 use crate::sections::decode_sections2;
 use crate::sections::encode_sections;
-use crate::serde::from_slice;
+use crate::serde::{from_slice, to_vec};
 use crate::traits::{Api, Querier, QuerierResult, Storage};
 #[cfg(feature = "iterator")]
 use crate::{
     iterator::{Order, Record},
     memory::get_optional_region_address,
 };
-use crate::Env;
+use crate::{Env,BlockInfo,ContractInfo};
+
 
 /// An upper bound for typical canonical address lengths (e.g. 20 in Cosmos SDK/Ethereum or 32 in Nano/Substrate)
 const CANONICAL_ADDRESS_BUFFER_LENGTH: usize = 64;
@@ -76,7 +77,7 @@ extern "C" {
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
 
-    fn create(env_ptr: u32, code_ptr: u32, init_msg_ptr: u32, checksum_ptr: u32) -> u32;
+    fn create(env_ptr: u32, code_ptr: u32, init_msg_ptr: u32, checksum_ptr: u32);
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -366,8 +367,8 @@ impl Api for ExternalApi {
         unsafe { debug(region_ptr) };
     }
 
-    fn create(&self, env: &[u8], code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
-        let env = build_region(env);
+    fn create(&self, env: &Env, code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
+        let env = build_region(&to_vec(&env).unwrap());
         let env_ptr = &*env as *const Region as u32;
 
         let code = build_region(code);
@@ -378,14 +379,14 @@ impl Api for ExternalApi {
 
         let checksum = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
 
-        let result = unsafe { create(env_ptr, code_ptr, init_msg_ptr, checksum as u32) };
-        if result != 0 {
-            // let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
-            // return Err(StdError::generic_err(format!(
-            //     "addr_humanize errored: {}",
-            //     error
-            // )));
-        }
+        unsafe { create(env_ptr, code_ptr, init_msg_ptr, checksum as u32) };
+        // if result != 0 {
+        //     // let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+        //     // return Err(StdError::generic_err(format!(
+        //     //     "addr_humanize errored: {}",
+        //     //     error
+        //     // )));
+        // }
 
         let address = unsafe { consume_string_region_written_by_vm(checksum) };
         Ok(Addr::unchecked(address))

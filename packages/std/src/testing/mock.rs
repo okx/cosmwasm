@@ -229,7 +229,7 @@ impl Api for MockApi {
         println!("{}", message);
     }
 
-    fn create(&self, env: &[u8], code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
+    fn create(&self, env: &Env, code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
         Ok(Addr::unchecked("human"))
     }
 }

@@ -150,6 +150,12 @@ pub trait Querier {
         request: &[u8],
         gas_limit: u64,
     ) -> BackendResult<SystemResult<ContractResult<Binary>>>;
+
+    fn create_before(
+        &self,
+        request: &[u8],
+        gas_limit: u64,
+    ) -> BackendResult<SystemResult<ContractResult<Binary>>>;
 }
 
 /// A result type for calling into the backend. Such a call can cause
