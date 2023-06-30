@@ -115,7 +115,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     key_ptr: u32,
     value_ptr:u32,
 ) -> VmResult<u32> {
-    let start=Instant::now();
+    // let start=Instant::now();
     let (data, mut store) = env.data_and_store_mut();
     let cache = data.state_cache.get(&key_ptr);
 
@@ -141,7 +141,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
 
 
     if ret > 0 {
-        update_db_read_all_time(start.elapsed().as_nanos());
+        // update_db_read_all_time(start.elapsed().as_nanos());
         return Ok(ret);
     }
     let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
@@ -159,7 +159,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
         gasInfo: gas_info,
         ret:tt
     });
-    update_db_read_all_time(start.elapsed().as_nanos());
+    // update_db_read_all_time(start.elapsed().as_nanos());
     return Ok(tt);
 }
 
