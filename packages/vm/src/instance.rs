@@ -15,6 +15,7 @@ use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
 use crate::size::Size;
 use crate::wasm_backend::compile;
+use crate::imports::write_to_contract;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GasReport {
@@ -369,8 +370,12 @@ where
         self.env.call_function1(name, args)
     }
 
-    pub(crate) fn set_call_depth(&mut self, call_depth: u32) {
+    pub fn set_call_depth(&mut self, call_depth: u32) {
         self.env.call_depth = call_depth;
+    }
+
+    pub fn write_to_contract(&mut self, input: &[u8]) -> VmResult<u32> {
+        write_to_contract(&self.env, input)
     }
 }
 

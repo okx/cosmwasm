@@ -5,6 +5,7 @@ use std::ops::Deref;
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::binary::Binary;
 use crate::coins::Coin;
+use crate::{Env, WasmMsg};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, VerificationError};
 #[cfg(feature = "iterator")]
 use crate::iterator::{Order, Record};
@@ -127,6 +128,18 @@ pub trait Api {
         messages: &[&[u8]],
         signatures: &[&[u8]],
         public_keys: &[&[u8]],
+    ) -> Result<bool, VerificationError>;
+
+    fn call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> Result<bool, VerificationError>;
+
+    fn delegate_call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
     ) -> Result<bool, VerificationError>;
 
     /// Emits a debugging message that is handled depending on the environment (typically printed to console or ignored).

@@ -29,7 +29,7 @@ use crate::storage::MemoryStorage;
 use crate::timestamp::Timestamp;
 use crate::traits::{Api, Querier, QuerierResult};
 use crate::types::{BlockInfo, ContractInfo, Env, MessageInfo, TransactionInfo};
-use crate::Attribute;
+use crate::{Attribute, WasmMsg};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
@@ -209,6 +209,44 @@ impl Api for MockApi {
             signatures,
             public_keys,
         )?)
+    }
+
+    fn call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> Result<bool, VerificationError> {
+        //todo
+        let result  = 0;
+        match result {
+            0 => Ok(true),
+            1 => Ok(false),
+            2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
+            3 => panic!("InvalidHashFormat must not happen. This is a bug in the VM."),
+            4 => Err(VerificationError::InvalidSignatureFormat),
+            5 => Err(VerificationError::InvalidPubkeyFormat),
+            10 => Err(VerificationError::GenericErr),
+            error_code => Err(VerificationError::unknown_err(error_code)),
+        }
+    }
+
+    fn delegate_call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> Result<bool, VerificationError> {
+        //todo
+        let result  = 0;
+        match result {
+            0 => Ok(true),
+            1 => Ok(false),
+            2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
+            3 => panic!("InvalidHashFormat must not happen. This is a bug in the VM."),
+            4 => Err(VerificationError::InvalidSignatureFormat),
+            5 => Err(VerificationError::InvalidPubkeyFormat),
+            10 => Err(VerificationError::GenericErr),
+            error_code => Err(VerificationError::unknown_err(error_code)),
+        }
     }
 
     fn debug(&self, message: &str) {

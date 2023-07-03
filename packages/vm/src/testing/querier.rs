@@ -2,12 +2,9 @@ use serde::de::DeserializeOwned;
 use std::any::Any;
 
 use cosmwasm_std::testing::{MockQuerier as StdMockQuerier, MockQuerierCustomHandlerResult};
-use cosmwasm_std::{
-    to_binary, to_vec, Binary, Coin, ContractResult, CustomQuery, Empty, Querier as _,
-    QueryRequest, SystemError, SystemResult,
-};
+use cosmwasm_std::{to_binary, to_vec, Binary, Coin, ContractResult, CustomQuery, Empty, Querier as _, QueryRequest, SystemError, SystemResult, MessageInfo, Env};
 
-use crate::{BackendError, BackendResult, GasInfo, Querier};
+use crate::{backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier};
 
 const GAS_COST_QUERY_FLAT: u64 = 100_000;
 /// Gas per request byte
@@ -85,10 +82,27 @@ impl<C: CustomQuery + DeserializeOwned+ 'static> Querier for MockQuerier<C> {
         // We don't use FFI in the mock implementation, so BackendResult is always Ok() regardless of error on other levels
         (Ok(response), gas_info)
     }
-    fn as_any(&self) -> &dyn Any {
-        self
+    // fn as_any(&self) -> &dyn Any {
+    //     self
+    // }
+    // fn generate_call_info(&self, contract_address: String) -> [u8; 32] {
+    //     todo!()
+    // }
+    fn call<A: BackendApi + 'static, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+                                                                 contract_address: String,
+                                                                 info: &MessageInfo,
+                                                                 call_msg: &[u8],
+                                                                 block_env: &Env
+    ) -> [u8; 32]{
+        todo!()
     }
-    fn generate_call_info(&self, contract_address: String) -> [u8; 32] {
+    fn delegate_call<A: BackendApi + 'static, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+                                                                      caller_address: String,
+                                                                      contract_address: String,
+                                                                      info: &MessageInfo,
+                                                                      call_msg: &[u8],
+                                                                      block_env: &Env
+    ) -> [u8; 32] {
         todo!()
     }
 }

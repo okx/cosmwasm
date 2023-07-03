@@ -4,9 +4,10 @@ use std::ops::AddAssign;
 use std::string::FromUtf8Error;
 use thiserror::Error;
 
-use cosmwasm_std::{Binary, ContractResult, SystemResult};
+use cosmwasm_std::{Binary, ContractResult, Env, MessageInfo, SystemResult};
 #[cfg(feature = "iterator")]
 use cosmwasm_std::{Order, Record};
+use crate::Environment;
 
 /// A structure that represents gas cost to be deducted from the remaining gas.
 /// This is always needed when computations are performed outside of
@@ -151,8 +152,19 @@ pub trait Querier: Any {
         request: &[u8],
         gas_limit: u64,
     ) -> BackendResult<SystemResult<ContractResult<Binary>>>;
-    fn generate_call_info(&self, contract_address: String) -> [u8; 32];
-    fn as_any(&self) -> &dyn Any;
+    fn call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+                                                                 contract_address: String,
+                                                                 info: &MessageInfo,
+                                                                 call_msg: &[u8],
+                                                                 block_env: &Env
+    ) -> [u8; 32];
+    fn delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+                                                                      caller_address: String,
+                                                                      contract_address: String,
+                                                                      info: &MessageInfo,
+                                                                      call_msg: &[u8],
+                                                                      block_env: &Env
+    ) -> [u8; 32];
 }
 
 /// A result type for calling into the backend. Such a call can cause
