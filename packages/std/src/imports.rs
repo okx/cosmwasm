@@ -24,6 +24,8 @@ const CANONICAL_ADDRESS_BUFFER_LENGTH: usize = 64;
 /// An upper bound for typical human readable address formats (e.g. 42 for Ethereum hex addresses or 90 for bech32)
 const HUMAN_ADDRESS_BUFFER_LENGTH: usize = 90;
 
+const CALL_RESPONSE_BUFFER_LENGTH: usize = 1024*1024;
+
 // This interface will compile into required Wasm imports.
 // A complete documentation those functions is available in the VM that provides them:
 // https://github.com/CosmWasm/cosmwasm/blob/v1.0.0-beta/packages/vm/src/instance.rs#L89-L206
@@ -79,10 +81,10 @@ extern "C" {
     fn query_chain(request: u32) -> u32;
 
     /// Executes a cross contract call
-    fn call(env_ptr: u32, msg_ptr: u32) -> u32;
+    fn call(env_ptr: u32, msg_ptr: u32, destination_ptr: u32) -> u32;
 
     // Executes a cross contract delegate_call
-    fn delegate_call(env_ptr: u32, msg_ptr: u32) -> u32;
+    fn delegate_call(env_ptr: u32, msg_ptr: u32, destination_ptr: u32) -> u32;
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -369,7 +371,7 @@ impl Api for ExternalApi {
         &self,
         env: &Env,
         msg: &WasmMsg,
-    ) -> Result<bool, VerificationError> {
+    ) -> StdResult<Vec<u8>> {
         println!("the enter the std call {:?} {:?}", env, msg);
 
         let raw = to_vec(env).map_err(|serialize_err| {
@@ -388,25 +390,38 @@ impl Api for ExternalApi {
         // let msg_send = build_region(&to_vec(msg).unwrap());
         // let msg_ptr = &*msg_send as *const Region as u32;
 
+        let destination = alloc(CALL_RESPONSE_BUFFER_LENGTH);
+
         let result =
-            unsafe { call(env_ptr, msg_ptr) };
-        match result {
-            0 => Ok(true),
-            1 => Ok(false),
-            2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-            error_code => Err(VerificationError::unknown_err(error_code)),
-            // return Err(StdError::generic_err(format!(
-            //     "addr_humanize errored: {}",
-            //     error
-            // )));
+            unsafe { call(env_ptr, msg_ptr, destination as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "call errored: {}",
+                error
+            )));
         }
+
+        let res = unsafe { consume_region(destination) };
+        Ok(res)
+
+        // match result {
+        //     0 => Ok(true),
+        //     1 => Ok(false),
+        //     2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
+        //     error_code => Err(VerificationError::unknown_err(error_code)),
+        //     // return Err(StdError::generic_err(format!(
+        //     //     "addr_humanize errored: {}",
+        //     //     error
+        //     // )));
+        // }
     }
 
     fn delegate_call(
         &self,
         env: &Env,
         msg: &WasmMsg,
-    ) -> Result<bool, VerificationError> {
+    ) -> StdResult<Vec<u8>> {
         println!("the enter the std call {:?} {:?}", env, msg);
 
         let raw = to_vec(env).map_err(|serialize_err| {
@@ -425,18 +440,33 @@ impl Api for ExternalApi {
         // let msg_send = build_region(&to_vec(msg).unwrap());
         // let msg_ptr = &*msg_send as *const Region as u32;
 
+        let destination = alloc(CALL_RESPONSE_BUFFER_LENGTH);
+
         let result =
-            unsafe { delegate_call(env_ptr, msg_ptr) };
-        match result {
-            0 => Ok(true),
-            1 => Ok(false),
-            2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-            error_code => Err(VerificationError::unknown_err(error_code)),
-            // return Err(StdError::generic_err(format!(
-            //     "addr_humanize errored: {}",
-            //     error
-            // )));
+            unsafe { delegate_call(env_ptr, msg_ptr, destination as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "delegate_call errored: {}",
+                error
+            )));
         }
+
+        let res = unsafe { consume_region(destination) };
+        Ok(res)
+
+        // let result =
+        //     unsafe { delegate_call(env_ptr, msg_ptr) };
+        // match result {
+        //     0 => Ok(true),
+        //     1 => Ok(false),
+        //     2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
+        //     error_code => Err(VerificationError::unknown_err(error_code)),
+        //     // return Err(StdError::generic_err(format!(
+        //     //     "addr_humanize errored: {}",
+        //     //     error
+        //     // )));
+        // }
     }
 
     // fn call(

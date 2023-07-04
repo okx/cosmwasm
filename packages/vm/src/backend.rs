@@ -7,7 +7,7 @@ use thiserror::Error;
 use cosmwasm_std::{Binary, ContractResult, Env, MessageInfo, SystemResult};
 #[cfg(feature = "iterator")]
 use cosmwasm_std::{Order, Record};
-use crate::Environment;
+use crate::{Environment, VmResult};
 
 /// A structure that represents gas cost to be deducted from the remaining gas.
 /// This is always needed when computations are performed outside of
@@ -157,14 +157,14 @@ pub trait Querier: Any {
                                                                  info: &MessageInfo,
                                                                  call_msg: &[u8],
                                                                  block_env: &Env
-    ) -> [u8; 32];
+    ) -> VmResult<Vec<u8>>;
     fn delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                                       caller_address: String,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],
                                                                       block_env: &Env
-    ) -> [u8; 32];
+    ) -> VmResult<Vec<u8>>;
 }
 
 /// A result type for calling into the backend. Such a call can cause

@@ -4,7 +4,7 @@ use std::any::Any;
 use cosmwasm_std::testing::{MockQuerier as StdMockQuerier, MockQuerierCustomHandlerResult};
 use cosmwasm_std::{to_binary, to_vec, Binary, Coin, ContractResult, CustomQuery, Empty, Querier as _, QueryRequest, SystemError, SystemResult, MessageInfo, Env};
 
-use crate::{backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier};
+use crate::{backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier, VmResult};
 
 const GAS_COST_QUERY_FLAT: u64 = 100_000;
 /// Gas per request byte
@@ -93,7 +93,7 @@ impl<C: CustomQuery + DeserializeOwned+ 'static> Querier for MockQuerier<C> {
                                                                  info: &MessageInfo,
                                                                  call_msg: &[u8],
                                                                  block_env: &Env
-    ) -> [u8; 32]{
+    ) -> VmResult<Vec<u8>>{
         todo!()
     }
     fn delegate_call<A: BackendApi + 'static, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
@@ -102,7 +102,7 @@ impl<C: CustomQuery + DeserializeOwned+ 'static> Querier for MockQuerier<C> {
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],
                                                                       block_env: &Env
-    ) -> [u8; 32] {
+    ) -> VmResult<Vec<u8>> {
         todo!()
     }
 }

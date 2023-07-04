@@ -91,60 +91,6 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage, Q: Querier>(
     let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let value = result?;
-
-    // env::set_var("RUST_BACKTRACE", "1");
-    // // for test
-    // let contract_address = String::from("0x91B790Bbf4EEDF989d2C3AFC2Fcf09e8eC233246");
-    // let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
-    // //let vcoin: Vec<Coin> = vec![Coin::new(1, "hello")];
-    // let vcoin: Vec<Coin> = vec![];
-    // let info = MessageInfo{
-    //     sender: Addr::unchecked(sender_address.clone()), // TODO check the address is sender
-    //     funds: vcoin.to_vec()};
-    // let benv = Env {
-    //     block: BlockInfo {
-    //         height: 19_013,
-    //         time: Timestamp::from_nanos(1_688_109_643_006_501_000),
-    //         chain_id: "exchain-67".to_string(),
-    //     },
-    //     transaction: Some(TransactionInfo { index: 0 }),
-    //     contract: ContractInfo {
-    //         address: Addr::unchecked("0x91B790Bbf4EEDF989d2C3AFC2Fcf09e8eC233246"),
-    //     },
-    // };
-    // let binding = String::from("{\"release\":{}}");
-    // let mut byte_array = binding.as_bytes();
-    // let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
-    //     Ok(querier.generate_call_info(env, contract_address.clone(), &info, byte_array, &benv))
-    // })?;
-
-    //println!("this is do_db_read test Checksum: {:?}", checksum);
-
-    // env::set_var("RUST_BACKTRACE", "1");
-    // // for test
-    // let contract_address = String::from("0x91B790Bbf4EEDF989d2C3AFC2Fcf09e8eC233246");
-    // let vcoin: Vec<Coin> = vec![Coin::new(1, "hello")];
-    // let info = MessageInfo{
-    //     sender: Addr::unchecked(contract_address.clone()), // TODO check the address is sender
-    //     funds: vcoin.to_vec()};
-    // let benv = Env {
-    //      block: BlockInfo {
-    //          height: 12_345,
-    //          time: Timestamp::from_nanos(1_571_797_419_879_305_533),
-    //          chain_id: "cosmos-testnet-14002".to_string(),
-    //      },
-    //      transaction: Some(TransactionInfo { index: 3 }),
-    //      contract: ContractInfo {
-    //          address: Addr::unchecked("contract"),
-    //      },
-    //  };
-    // let mut byte_array: [u8; 32] = [0; 32];
-    // let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
-    //     Ok(querier.generate_call_info(env, contract_address.clone(), &info, &byte_array, &benv))
-    // })?;
-    //
-    // println!("this is do_db_read test Checksum: {:?}", checksum);
-
     let out_data = match value {
         Some(data) => data,
         None => return Ok(0),
@@ -454,11 +400,11 @@ pub fn do_debug<A: BackendApi + 'static, S: Storage, Q: Querier>(
    //
    //  println!("this is do_debug test Checksum: {:?}", checksum);
 
-    if env.print_debug {
+    //if env.print_debug {
         let message_data = read_region(&env.memory(), message_ptr, MAX_LENGTH_DEBUG)?;
         let msg = String::from_utf8_lossy(&message_data);
         println!("{}", msg);
-    }
+    //}
     Ok(())
 }
 
@@ -506,12 +452,14 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     env_ptr: u32,
     msg_ptr: u32,
+    destination_ptr: u32,
 ) -> VmResult<u32> {
     env::set_var("RUST_BACKTRACE", "1");
 
     println!("enter the do_call {} {}", env_ptr, msg_ptr);
     if env.call_depth + 1 > Max_CALL_depth {
-        return Err(VmError::aborted("more than the max call depth"));
+        // return Err(VmError::aborted("more than the max call depth"));
+        return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
 
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
@@ -537,7 +485,8 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
             vcoin = funds;
         }
         _ => {
-           return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
+           //return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
+            return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
         }
     }
 
@@ -551,7 +500,7 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
     // todo need update the benv the contract address
     benv.contract.address = Addr::unchecked(contract_address.clone());
 
-    let _ = env.with_querier_from_context::<_, _>(|querier| {
+    let result = env.with_querier_from_context::<_, _>(|querier| {
         Ok(querier.call(env,
                                       contract_address.clone(),
                                       &info,
@@ -560,13 +509,25 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
 
         ))
     })?;
-    return Ok(1);
+    match result {
+        Ok(data) => {
+            println!(" the call return data is {:?}", data);
+            write_region(&env.memory(), destination_ptr, data.as_slice())?;
+            Ok(0)
+        }
+        // Err(BackendError::UserErr { msg, .. }) => {
+        //     Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        // }
+        Err(err) => Err(VmError::from(err)),
+    }
+    //return Ok(1);
 }
 
 pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     env_ptr: u32,
     msg_ptr: u32,
+    destination_ptr: u32,
 ) -> VmResult<u32> {
     env::set_var("RUST_BACKTRACE", "1");
 
@@ -609,7 +570,7 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
         funds: vcoin.to_vec()};
 
     let caller_address = benv.contract.address.clone().into_string();
-    let _ = env.with_querier_from_context::<_, _>(|querier| {
+    let result = env.with_querier_from_context::<_, _>(|querier| {
         Ok(querier.delegate_call(env,
                                  caller_address,
                                  contract_address.clone(),
@@ -619,7 +580,20 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
 
         ))
     })?;
-    return Ok(1);
+
+    match result {
+        Ok(data) => {
+            println!(" the do_delegate_call return data is {:?}", data);
+            write_region(&env.memory(), destination_ptr, data.as_slice())?;
+            Ok(0)
+        }
+        // Err(BackendError::UserErr { msg, .. }) => {
+        //     Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        // }
+        Err(err) => Err(VmError::from(err)),
+    }
+
+    // return Ok(1);
 }
 
 // pub fn do_call1<A: BackendApi, S: Storage, Q: Querier>(

@@ -215,38 +215,16 @@ impl Api for MockApi {
         &self,
         env: &Env,
         msg: &WasmMsg,
-    ) -> Result<bool, VerificationError> {
-        //todo
-        let result  = 0;
-        match result {
-            0 => Ok(true),
-            1 => Ok(false),
-            2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-            3 => panic!("InvalidHashFormat must not happen. This is a bug in the VM."),
-            4 => Err(VerificationError::InvalidSignatureFormat),
-            5 => Err(VerificationError::InvalidPubkeyFormat),
-            10 => Err(VerificationError::GenericErr),
-            error_code => Err(VerificationError::unknown_err(error_code)),
-        }
+    ) -> StdResult<Vec<u8>> {
+        todo!()
     }
 
     fn delegate_call(
         &self,
         env: &Env,
         msg: &WasmMsg,
-    ) -> Result<bool, VerificationError> {
-        //todo
-        let result  = 0;
-        match result {
-            0 => Ok(true),
-            1 => Ok(false),
-            2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-            3 => panic!("InvalidHashFormat must not happen. This is a bug in the VM."),
-            4 => Err(VerificationError::InvalidSignatureFormat),
-            5 => Err(VerificationError::InvalidPubkeyFormat),
-            10 => Err(VerificationError::GenericErr),
-            error_code => Err(VerificationError::unknown_err(error_code)),
-        }
+    ) -> StdResult<Vec<u8>> {
+        todo!()
     }
 
     fn debug(&self, message: &str) {
