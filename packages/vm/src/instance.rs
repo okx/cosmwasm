@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::ptr::NonNull;
 use std::sync::Mutex;
+use cosmwasm_std::Addr;
 
 use wasmer::{Exports, Function, ImportObject, Instance as WasmerInstance, Module, Val};
 
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::Environment;
+use crate::environment::{Environment, InternalCallParam};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::features::required_features_from_module;
 use crate::imports::{do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_call, do_db_read, do_db_remove, do_db_write, do_debug, do_delegate_call, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify};
@@ -66,6 +67,7 @@ where
             backend,
             options.gas_limit,
             options.print_debug,
+            InternalCallParam::default(),
             None,
             None,
         )
@@ -76,12 +78,13 @@ where
         backend: Backend<A, S, Q>,
         gas_limit: u64,
         print_debug: bool,
+        param: InternalCallParam,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(backend.api, gas_limit, print_debug);
+        let env = Environment::new_ex(backend.api, gas_limit, print_debug, param);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -374,8 +377,24 @@ where
         self.env.call_depth = call_depth;
     }
 
+    pub fn get_call_depth(&mut self) -> u32 {
+        self.env.call_depth
+    }
+
     pub fn write_to_contract(&mut self, input: &[u8]) -> VmResult<u32> {
         write_to_contract(&self.env, input)
+    }
+
+    pub fn set_sender_addr(&mut self, addr: Addr) {
+        self.env.sender_addr = addr;
+    }
+
+    pub fn get_sender_addr(&mut self) -> Addr {
+        self.env.sender_addr.clone()
+    }
+
+    pub fn set_delegate_contract_addr(&mut self, addr: Addr) {
+        self.env.delegate_contract_addr = addr;
     }
 }
 
@@ -393,7 +412,7 @@ where
     S: Storage + 'static, // 'static is needed here to allow using this in an Environment that is cloned into closures
     Q: Querier + 'static,
 {
-    Instance::from_module(module, backend, gas_limit, print_debug, extra_imports, None)
+    Instance::from_module(module, backend, gas_limit, print_debug, InternalCallParam::default(), extra_imports, None)
 }
 
 #[cfg(test)]
@@ -491,6 +510,7 @@ mod tests {
             backend,
             instance_options.gas_limit,
             false,
+            InternalCallParam::default(),
             Some(extra_imports),
             None,
         )

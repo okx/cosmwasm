@@ -97,7 +97,6 @@ impl<C: CustomQuery + DeserializeOwned+ 'static> Querier for MockQuerier<C> {
         todo!()
     }
     fn delegate_call<A: BackendApi + 'static, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
-                                                                      caller_address: String,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],

@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use wasmer::{HostEnvInitError, Instance as WasmerInstance, Memory, Val, WasmerEnv};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
+use cosmwasm_std::Addr;
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
 use crate::errors::{VmError, VmResult};
@@ -77,7 +78,25 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub print_debug: bool,
     pub gas_config: GasConfig,
     pub call_depth: u32,
+    pub sender_addr: Addr,            // used for delegate call
+    pub delegate_contract_addr: Addr, // used for delegate call
     data: Arc<RwLock<ContextData<S, Q>>>,
+}
+
+pub struct InternalCallParam {
+    pub call_depth: u32,
+    pub sender_addr: Addr,            // used for delegate call
+    pub delegate_contract_addr: Addr, // used for delegate call
+}
+
+impl Default for InternalCallParam {
+    fn default() -> Self {
+        InternalCallParam {
+            call_depth: 1,
+            sender_addr: Addr::unchecked(""),
+            delegate_contract_addr: Addr::unchecked("")
+        }
+    }
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -91,6 +110,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
             call_depth: self.call_depth,
+            sender_addr: self.sender_addr.clone(),
+            delegate_contract_addr: self.delegate_contract_addr.clone(),
             data: self.data.clone(),
         }
     }
@@ -109,16 +130,20 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             print_debug,
             gas_config: GasConfig::default(),
             call_depth: 1,
+            sender_addr: Addr::unchecked(""),
+            delegate_contract_addr: Addr::unchecked(""),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
         }
     }
 
-    pub fn new_call_depth(api: A, gas_limit: u64, print_debug: bool, call_depth: u32) -> Self {
+    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam) -> Self {
         Environment {
             api,
             print_debug,
             gas_config: GasConfig::default(),
-            call_depth: call_depth,
+            call_depth: param.call_depth,
+            sender_addr: param.sender_addr,
+            delegate_contract_addr: param.delegate_contract_addr,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
         }
     }

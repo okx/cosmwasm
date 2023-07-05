@@ -456,12 +456,11 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
 ) -> VmResult<u32> {
     env::set_var("RUST_BACKTRACE", "1");
 
-    println!("enter the do_call {} {}", env_ptr, msg_ptr);
     if env.call_depth + 1 > Max_CALL_depth {
         // return Err(VmError::aborted("more than the max call depth"));
         return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
-
+    println!("enter the do_call {} {} call depth {}", env_ptr, msg_ptr, env.call_depth);
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
 
@@ -490,14 +489,14 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
         }
     }
 
-    let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
+    //let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
     // set messge info
     let info = MessageInfo{
-        sender: Addr::unchecked(sender_address), // TODO check the address is sender
+        sender: benv.contract.address.clone(), // the do_call function sender is the caller contract address
         funds: vcoin.to_vec()
     };
 
-    // todo need update the benv the contract address
+    // update the benv the contract address for the callee contract address
     benv.contract.address = Addr::unchecked(contract_address.clone());
 
     let result = env.with_querier_from_context::<_, _>(|querier| {
@@ -529,17 +528,17 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
     msg_ptr: u32,
     destination_ptr: u32,
 ) -> VmResult<u32> {
-    env::set_var("RUST_BACKTRACE", "1");
+    //env::set_var("RUST_BACKTRACE", "1");
 
-    println!("enter the do_delegate_call {} {}", env_ptr, msg_ptr);
     if env.call_depth + 1 > Max_CALL_depth {
-        return Err(VmError::aborted("more than the max call depth"));
+        return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
-
+    println!("enter the do_delegate_call {} {} call depth {} sender addr {} delecall addr {}",
+             env_ptr, msg_ptr, env.call_depth, env.sender_addr, env.delegate_contract_addr);
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
 
-    let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
+    let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
 
     println!("do_delegate_call benv is {:?}", benv);
 
@@ -559,20 +558,21 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
             vcoin = funds;
         }
         _ => {
-            return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
+            return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
         }
     }
 
-    let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
+    //let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
     // set messge info
     let info = MessageInfo{
-        sender: Addr::unchecked(sender_address), // TODO check the address is sender
+        sender: env.sender_addr.clone(),
         funds: vcoin.to_vec()};
 
-    let caller_address = benv.contract.address.clone().into_string();
+    // update the benv the contract address for the callee contract address
+    benv.contract.address = Addr::unchecked(contract_address.clone());
+
     let result = env.with_querier_from_context::<_, _>(|querier| {
         Ok(querier.delegate_call(env,
-                                 caller_address,
                                  contract_address.clone(),
                                       &info,
                                       call_msg.as_slice(),

@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::checksum::Checksum;
 use crate::compatibility::check_wasm;
+use crate::environment::InternalCallParam;
 use crate::errors::{VmError, VmResult};
 use crate::features::required_features_from_module;
 use crate::instance::{Instance, InstanceOptions};
@@ -263,6 +264,27 @@ where
             backend,
             options.gas_limit,
             options.print_debug,
+            InternalCallParam::default(),
+            None,
+            Some(&self.instantiation_lock),
+        )?;
+        Ok(instance)
+    }
+
+    pub fn get_instance_ex(
+        &self,
+        checksum: &Checksum,
+        backend: Backend<A, S, Q>,
+        options: InstanceOptions,
+        param: InternalCallParam,
+    ) -> VmResult<Instance<A, S, Q>> {
+        let module = self.get_module(checksum)?;
+        let instance = Instance::from_module(
+            &module,
+            backend,
+            options.gas_limit,
+            options.print_debug,
+            param,
             None,
             Some(&self.instantiation_lock),
         )?;

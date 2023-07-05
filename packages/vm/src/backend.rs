@@ -159,7 +159,6 @@ pub trait Querier: Any {
                                                                  block_env: &Env
     ) -> VmResult<Vec<u8>>;
     fn delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
-                                                                      caller_address: String,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],
