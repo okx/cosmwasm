@@ -1,4 +1,3 @@
-use std::result;
 use serde::de::DeserializeOwned;
 use wasmer::Value;
 
