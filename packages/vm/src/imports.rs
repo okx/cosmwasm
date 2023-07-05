@@ -102,7 +102,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let cache = data.state_cache.get(&key);
     let ret = match cache {
         Some(store_cache) => {
-            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gasInfo)?;
+            process_gas_info::<A, S, Q>(data, &mut store, store_cache.gas_info)?;
             write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value, value_ptr)
         }
         None => {
@@ -123,7 +123,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     };
     data.state_cache.insert(key,CacheStore{
         value: out_data.clone(),
-        gasInfo: gas_info,
+        gas_info: gas_info,
         key_type: KeyType::Read,
     });
     write_to_contract_ex::<A, S, Q>(data, &mut store,&out_data,value_ptr)
@@ -185,7 +185,7 @@ pub fn do_db_write_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier 
     let gas_info = consum_set_gas_cost(value.len() as u32, );
     data.state_cache.insert(key, CacheStore{
         value,
-        gasInfo: gas_info,
+        gas_info: gas_info,
         key_type: KeyType::Write,
     });
 
@@ -227,7 +227,7 @@ pub fn do_db_remove_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier
     let gas_info = consum_remove_gas_cost();
     data.state_cache.entry(key).or_insert(CacheStore{
         value: Vec::default(),
-        gasInfo: gas_info,
+        gas_info: gas_info,
         key_type: KeyType::Remove,
     });
 

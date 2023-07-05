@@ -115,7 +115,7 @@ pub enum KeyType {
 #[derive(Clone)]
 pub struct CacheStore{
     pub value: Vec<u8>,
-    pub gasInfo : GasInfo,
+    pub gas_info: GasInfo,
     pub key_type: KeyType,
 }
 

@@ -5,7 +5,6 @@ use cosmwasm_std::Coin;
 use std::collections::HashSet;
 
 use crate::capabilities::capabilities_from_csv;
-use crate::compatibility::check_wasm;
 use crate::instance::{Instance, InstanceOptions};
 use crate::size::Size;
 use crate::{Backend, BackendApi, Querier, Storage};

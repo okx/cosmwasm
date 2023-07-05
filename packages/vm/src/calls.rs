@@ -349,7 +349,7 @@ where
         &[env, info, msg],
         read_limits::RESULT_INSTANTIATE,
     );
-    instance.commit_store();
+    instance.commit_store()?;
     result
 }
 
@@ -373,7 +373,7 @@ where
         &[env, info, msg],
         read_limits::RESULT_EXECUTE,
     );
-    instance.commit_store();
+    instance.commit_store()?;
     result
 }
 
