@@ -107,9 +107,16 @@ pub struct DebugInfo<'a> {
 //                            v                                          v
 pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 
+#[derive(Clone)]
+pub enum KeyType {
+    Read, Write, Remove,
+}
+
+#[derive(Clone)]
 pub struct CacheStore{
     pub value: Vec<u8>,
     pub gasInfo : GasInfo,
+    pub key_type: KeyType,
 }
 
 /// A environment that provides access to the ContextData.
@@ -137,7 +144,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
-            state_cache: BTreeMap::new(),
+            state_cache: self.state_cache.clone(),
         }
     }
 }

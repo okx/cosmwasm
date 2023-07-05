@@ -10,12 +10,12 @@ use wasmer::{
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::Environment;
+use crate::environment::{Environment, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
-    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex, do_db_remove,
-    do_db_write, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
-    do_secp256k1_recover_pubkey, do_secp256k1_verify,
+    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,
+    do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_ed25519_batch_verify,
+    do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -127,6 +127,11 @@ where
             Function::new_typed_with_env(&mut store, &fe, do_db_write),
         );
 
+        env_imports.insert(
+            "db_write_ex",
+            Function::new_typed_with_env(&mut store, &fe, do_db_write_ex),
+        );
+
         // Removes the value at the given key. Different than writing &[] as future
         // scans will not find this key.
         // At the moment it is not possible to differentiate between a key that existed before and one that did not exist (https://github.com/CosmWasm/cosmwasm/issues/290).
@@ -134,6 +139,11 @@ where
         env_imports.insert(
             "db_remove",
             Function::new_typed_with_env(&mut store, &fe, do_db_remove),
+        );
+
+        env_imports.insert(
+            "db_remove_ex",
+            Function::new_typed_with_env(&mut store, &fe, do_db_remove_ex),
         );
 
         // Reads human address from source_ptr and checks if it is valid.
@@ -288,6 +298,23 @@ where
 
     pub fn api(&self) -> &A {
         &self.fe.as_ref(&self.store).api
+    }
+
+    pub fn commit_store(&mut self) {
+        let mut env = self.fe.clone().into_mut(&mut self.store);
+        let (data, _) = env.data_and_store_mut();
+        for (key,cache_store) in &data.state_cache {
+            match cache_store.key_type {
+                KeyType::Write => {
+                    data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store for set");
+                }
+                KeyType::Remove => {
+                    data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key))).expect("failed commit_store for remove");
+                }
+                _ => ()
+            }
+        }
+        data.state_cache.clear();
     }
 
     /// Decomposes this instance into its components.
