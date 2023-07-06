@@ -296,6 +296,10 @@ where
         self.env.get_gas_left()
     }
 
+    pub fn get_externally_used_gas(&self) -> u64 {
+        self.env.get_externally_used_gas()
+    }
+
     /// Creates and returns a gas report.
     /// This is a snapshot and multiple reports can be created during the lifetime of
     /// an instance.

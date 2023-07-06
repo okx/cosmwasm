@@ -156,14 +156,16 @@ pub trait Querier: Any {
                                                                  contract_address: String,
                                                                  info: &MessageInfo,
                                                                  call_msg: &[u8],
-                                                                 block_env: &Env
-    ) -> VmResult<Vec<u8>>;
+                                                                 block_env: &Env,
+                                                                 gas_limit: u64
+    ) -> (VmResult<Vec<u8>>, GasInfo);
     fn delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],
-                                                                      block_env: &Env
-    ) -> VmResult<Vec<u8>>;
+                                                                      block_env: &Env,
+                                                                      gas_limit: u64
+    ) -> (VmResult<Vec<u8>>, GasInfo);
 }
 
 /// A result type for calling into the backend. Such a call can cause

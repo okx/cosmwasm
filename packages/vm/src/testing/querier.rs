@@ -92,16 +92,18 @@ impl<C: CustomQuery + DeserializeOwned+ 'static> Querier for MockQuerier<C> {
                                                                  contract_address: String,
                                                                  info: &MessageInfo,
                                                                  call_msg: &[u8],
-                                                                 block_env: &Env
-    ) -> VmResult<Vec<u8>>{
+                                                                 block_env: &Env,
+                                                                 gas_limit: u64
+    ) -> (VmResult<Vec<u8>>, GasInfo) {
         todo!()
     }
     fn delegate_call<A: BackendApi + 'static, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],
-                                                                      block_env: &Env
-    ) -> VmResult<Vec<u8>> {
+                                                                      block_env: &Env,
+                                                                      gas_limit: u64
+    ) -> (VmResult<Vec<u8>>, GasInfo) {
         todo!()
     }
 }

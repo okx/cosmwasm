@@ -499,18 +499,23 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
     // update the benv the contract address for the callee contract address
     benv.contract.address = Addr::unchecked(contract_address.clone());
 
-    let result = env.with_querier_from_context::<_, _>(|querier| {
+    let gas_left = env.get_gas_left();
+    let (result, gas_info) = env.with_querier_from_context::<_, _>(|querier| {
         Ok(querier.call(env,
                                       contract_address.clone(),
                                       &info,
                                       call_msg.as_slice(),
                                       &benv,
+            gas_left
 
         ))
     })?;
+
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+
     match result {
         Ok(data) => {
-            println!(" the call return data is {:?}", data);
+            println!(" the call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }
@@ -571,19 +576,24 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
     // update the benv the contract address for the callee contract address
     benv.contract.address = Addr::unchecked(contract_address.clone());
 
-    let result = env.with_querier_from_context::<_, _>(|querier| {
+    let gas_left = env.get_gas_left();
+    let (result, gas_info) = env.with_querier_from_context::<_, _>(|querier| {
         Ok(querier.delegate_call(env,
                                  contract_address.clone(),
                                       &info,
                                       call_msg.as_slice(),
                                       &benv,
+            gas_left
 
         ))
     })?;
 
+
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+
     match result {
         Ok(data) => {
-            println!(" the do_delegate_call return data is {:?}", data);
+            println!(" the delegate call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }

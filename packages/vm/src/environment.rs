@@ -287,6 +287,13 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
+    pub fn get_externally_used_gas(&self) -> u64 {
+        let externally_used_gas= self.with_gas_state_mut(|gas_state| {
+            gas_state.externally_used_gas
+        });
+        externally_used_gas
+    }
+
     pub fn set_gas_left(&self, new_value: u64) {
         self.with_wasmer_instance(|instance| {
             set_remaining_points(instance, new_value);
@@ -397,6 +404,15 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
         Ok(())
     }
 }
+
+// pub fn get_externally_used_gas<A: BackendApi, S: Storage, Q: Querier>(
+//     env: &Environment<A, S, Q>,
+// ) -> u64 {
+//     let externally_used_gas= env.with_gas_state_mut(|gas_state| {
+//         gas_state.externally_used_gas
+//     });
+//     externally_used_gas
+// }
 
 #[cfg(test)]
 mod tests {
