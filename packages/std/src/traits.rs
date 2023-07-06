@@ -29,6 +29,8 @@ pub trait Storage {
     /// is not great yet and might not be possible in all backends. But we're trying to get there.
     fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
 
+    fn get_ex(&self, key: &[u8]) -> Option<Vec<u8>>;
+
     #[cfg(feature = "iterator")]
     /// Allows iteration over a set of key/value pairs, either forwards or backwards.
     ///

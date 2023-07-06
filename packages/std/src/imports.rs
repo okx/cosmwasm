@@ -30,6 +30,7 @@ extern "C" {
     fn abort(source_ptr: u32);
 
     fn db_read(key: u32) -> u32;
+    fn db_read_ex(key:u32,value:u32) -> u32;
     fn db_write(key: u32, value: u32);
     fn db_remove(key: u32);
 
@@ -102,6 +103,37 @@ impl Storage for ExternalStorage {
         let data = unsafe { consume_region(value_ptr) };
         Some(data)
     }
+
+
+    fn get_ex(&self, key: &[u8]) -> Option<Vec<u8>> {
+        let mut vTemp:[u8;24] = [0;24];
+        let key = build_region(key);
+        let mut value = build_region(vTemp.as_ref());
+        let key_ptr = &*key as *const Region as u32;
+        let val_ptr = &*value as *const Region as u32;
+
+        let read = unsafe { db_read_ex(key_ptr,val_ptr) };
+        if read == 0 {
+            // key does not exist in external storage
+            return None;
+        }
+
+        let value_ptr = read as *mut Region;
+        if read == val_ptr {
+            unsafe{
+                let ret = Vec::from_raw_parts(
+                    (*value_ptr).offset  as *mut u8,
+                    (*value_ptr).length  as usize,
+                    (*value_ptr).capacity as usize,
+                );
+                return Some(ret);
+            }
+        }
+
+        let data = unsafe { consume_region(value_ptr) };
+        Some(data)
+    }
+
 
     fn set(&mut self, key: &[u8], value: &[u8]) {
         if value.is_empty() {
