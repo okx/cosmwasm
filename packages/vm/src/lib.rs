@@ -47,9 +47,8 @@ pub use crate::instance::{GasReport, Instance, InstanceOptions};
 pub use crate::serde::{from_slice, to_vec};
 pub use crate::size::Size;
 
-// new for call
+// for call
 pub use crate::environment::{Environment, process_gas_info, InternalCallParam};
-pub use crate::imports::write_to_contract;
 
 #[doc(hidden)]
 pub mod internals {

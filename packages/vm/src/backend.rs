@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::fmt::Debug;
 use std::ops::AddAssign;
 use std::string::FromUtf8Error;
@@ -137,7 +136,7 @@ pub trait BackendApi: Copy + Clone + Send {
     fn human_address(&self, canonical: &[u8]) -> BackendResult<String>;
 }
 
-pub trait Querier: Any {
+pub trait Querier {
     /// This is all that must be implemented for the Querier.
     /// This allows us to pass through binary queries from one level to another without
     /// knowing the custom format, or we can decode it, with the knowledge of the allowed
@@ -152,14 +151,14 @@ pub trait Querier: Any {
         request: &[u8],
         gas_limit: u64,
     ) -> BackendResult<SystemResult<ContractResult<Binary>>>;
-    fn call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+    fn call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                                  contract_address: String,
                                                                  info: &MessageInfo,
                                                                  call_msg: &[u8],
                                                                  block_env: &Env,
                                                                  gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo);
-    fn delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+    fn delegate_call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
                                                                       call_msg: &[u8],

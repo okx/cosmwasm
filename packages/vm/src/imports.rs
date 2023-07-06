@@ -10,7 +10,7 @@ use cosmwasm_crypto::{
 use cosmwasm_crypto::{
     ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, MESSAGE_HASH_MAX_LEN,
 };
-use cosmwasm_std::{Addr, BlockInfo, ContractInfo, Env, Timestamp, TransactionInfo};
+use cosmwasm_std::{Addr, Env};
 
 #[cfg(feature = "iterator")]
 use cosmwasm_std::Order;
@@ -26,9 +26,8 @@ use crate::sections::decode_sections;
 #[allow(unused_imports)]
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
-use crate::{call_execute, Checksum, from_slice, GasInfo, cache::Cache, Backend, InstanceOptions};
+use crate::{from_slice, GasInfo};
 use cosmwasm_std::{WasmMsg, MessageInfo, Coin, Binary};
-use crate::testing::{MockQuerier, MockStorage};
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -69,10 +68,7 @@ const MAX_LENGTH_CALL_DATA: usize = 64 * KI;
 const MAX_LENGTH_ENV: usize = 64 * KI;
 
 /// max call depth
-const Max_CALL_depth: u32 = 1024;
-
-/// caller address length
-const Max_CALLER_LENGTH: usize = 32;
+const MAX_CALL_DEPTH: u32 = 1024;
 
 // Import implementations
 //
@@ -82,7 +78,7 @@ const Max_CALLER_LENGTH: usize = 32;
 // through the env.
 
 /// Reads a storage entry from the VM's storage into Wasm memory
-pub fn do_db_read<A: BackendApi + 'static, S: Storage, Q: Querier>(
+pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     key_ptr: u32,
 ) -> VmResult<u32> {
@@ -91,6 +87,7 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage, Q: Querier>(
     let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let value = result?;
+
     let out_data = match value {
         Some(data) => data,
         None => return Ok(0),
@@ -366,45 +363,15 @@ pub fn do_ed25519_batch_verify<A: BackendApi, S: Storage, Q: Querier>(
 
 /// Prints a debug message to console.
 /// This does not charge gas, so debug printing should be disabled when used in a blockchain module.
-pub fn do_debug<A: BackendApi + 'static, S: Storage, Q: Querier>(
+pub fn do_debug<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     message_ptr: u32,
 ) -> VmResult<()> {
-   //  env::set_var("RUST_BACKTRACE", "1");
-   //  // for test
-   // // let contract_address = String::from("0x91B790Bbf4EEDF989d2C3AFC2Fcf09e8eC233246");
-   //  let contract_address = String::from("0xbd16Fd13769A88Ba224d3a8F0cb56cE83642F485");
-   //  let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
-   //  //let vcoin: Vec<Coin> = vec![Coin::new(1, "hello")];
-   //  let vcoin: Vec<Coin> = vec![];
-   //  let info = MessageInfo{
-   //      sender: Addr::unchecked(sender_address.clone()), // TODO check the address is sender
-   //      funds: vcoin.to_vec()};
-   //  let benv = Env {
-   //      block: BlockInfo {
-   //          height: 19_013,
-   //          time: Timestamp::from_nanos(1_688_109_643_006_501_000),
-   //          chain_id: "exchain-67".to_string(),
-   //      },
-   //      transaction: Some(TransactionInfo { index: 0 }),
-   //      contract: ContractInfo {
-   //          address: Addr::unchecked(contract_address.clone()),
-   //      },
-   //  };
-   //  //let binding = String::from("{\"release\":{}}");
-   //  let binding = String::from("{\"add\":{\"delta\":\"16\"}}");
-   //  let mut byte_array = binding.as_bytes();
-   //  let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
-   //      Ok(querier.call(env, contract_address.clone(), &info, byte_array, &benv))
-   //  })?;
-   //
-   //  println!("this is do_debug test Checksum: {:?}", checksum);
-
-    //if env.print_debug {
+    if env.print_debug {
         let message_data = read_region(&env.memory(), message_ptr, MAX_LENGTH_DEBUG)?;
         let msg = String::from_utf8_lossy(&message_data);
         println!("{}", msg);
-    //}
+    }
     Ok(())
 }
 
@@ -419,7 +386,7 @@ pub fn do_abort<A: BackendApi, S: Storage, Q: Querier>(
 }
 
 /// Creates a Region in the contract, writes the given data to it and returns the memory location
-pub fn write_to_contract<A: BackendApi, S: Storage, Q: Querier>(
+fn write_to_contract<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     input: &[u8],
 ) -> VmResult<u32> {
@@ -448,31 +415,26 @@ pub fn do_query_chain<A: BackendApi, S: Storage, Q: Querier>(
     write_to_contract::<A, S, Q>(env, &serialized)
 }
 
-pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
+pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     env_ptr: u32,
     msg_ptr: u32,
     destination_ptr: u32,
 ) -> VmResult<u32> {
-    env::set_var("RUST_BACKTRACE", "1");
+    //env::set_var("RUST_BACKTRACE", "full");
+    println!("rust cosmwasm enter the vm do_call call depth {}", env.call_depth);
 
-    if env.call_depth + 1 > Max_CALL_depth {
-        // return Err(VmError::aborted("more than the max call depth"));
+    if env.call_depth + 1 > MAX_CALL_DEPTH {
         return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
-    println!("enter the do_call {} {} call depth {}", env_ptr, msg_ptr, env.call_depth);
+
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
 
     let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
-
-    println!("do_call benv is {:?}", benv);
-
-    println!("do_call call_data is {:?}", call_data);
-
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
 
-    println!("do_call WasmMsg is {:?}", calld);
+    println!("rust cosmwasm do_call block env is {:?} wasmMsg is {:?}", benv, calld);
 
     let call_msg: Binary;
     let contract_address: String;
@@ -484,13 +446,10 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
             vcoin = funds;
         }
         _ => {
-           //return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
             return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
         }
     }
 
-    //let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
-    // set messge info
     let info = MessageInfo{
         sender: benv.contract.address.clone(), // the do_call function sender is the caller contract address
         funds: vcoin.to_vec()
@@ -515,7 +474,7 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
 
     match result {
         Ok(data) => {
-            println!(" the call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
+            println!("rust cosmwasm call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }
@@ -524,34 +483,29 @@ pub fn do_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
         // }
         Err(err) => Err(VmError::from(err)),
     }
-    //return Ok(1);
 }
 
-pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
+pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     env_ptr: u32,
     msg_ptr: u32,
     destination_ptr: u32,
 ) -> VmResult<u32> {
-    //env::set_var("RUST_BACKTRACE", "1");
+    //env::set_var("RUST_BACKTRACE", "full");
+    println!("rust cosmwasm enter the vm do_delegate_call call depth {} sender addr {} delecall addr {}",
+             env.call_depth, env.sender_addr, env.delegate_contract_addr);
 
-    if env.call_depth + 1 > Max_CALL_depth {
+    if env.call_depth + 1 > MAX_CALL_DEPTH {
         return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
-    println!("enter the do_delegate_call {} {} call depth {} sender addr {} delecall addr {}",
-             env_ptr, msg_ptr, env.call_depth, env.sender_addr, env.delegate_contract_addr);
+
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
 
     let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
-
-    println!("do_delegate_call benv is {:?}", benv);
-
-    println!("do_delegate_call call_data is {:?}", call_data);
-
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
 
-    println!("do_delegate_call WasmMsg is {:?}", calld);
+    println!("rust cosmwasm do_delegate_call block env is {:?} wasmMsg is {:?}", benv, calld);
 
     let call_msg: Binary;
     let contract_address: String;
@@ -567,8 +521,6 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
         }
     }
 
-    //let sender_address = String::from("0xbbE4733d85bc2b90682147779DA49caB38C0aA1F");
-    // set messge info
     let info = MessageInfo{
         sender: env.sender_addr.clone(),
         funds: vcoin.to_vec()};
@@ -588,12 +540,11 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
         ))
     })?;
 
-
     process_gas_info::<A, S, Q>(env, gas_info)?;
 
     match result {
         Ok(data) => {
-            println!(" the delegate call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
+            println!("rust cosmwasm the delegate call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }
@@ -602,143 +553,7 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage, Q: Querier>(
         // }
         Err(err) => Err(VmError::from(err)),
     }
-
-    // return Ok(1);
 }
-
-// pub fn do_call1<A: BackendApi, S: Storage, Q: Querier>(
-//     env: &Environment<A, S, Q>,
-//     msg_ptr: u32,
-//     env_ptr: u32, // or get from the go callback
-// ) -> VmResult<u32> {
-//     if env.call_depth + 1 > Max_CALL_depth {
-//         return Err(VmError::aborted("more than the max call depth"));
-//     }
-//     //return Ok(1);
-//     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
-//     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
-//
-//     let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
-//     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
-//     let call_msg: Binary;
-//     let contract_address: String;
-//     let vcoin: Vec<Coin>;
-//     match calld {
-//         WasmMsg::Execute { contract_addr, msg, funds} => {
-//             call_msg = msg;
-//             contract_address = contract_addr;
-//             vcoin = funds;
-//         }
-//         _ => {
-//            return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
-//         }
-//     }
-//
-//     // set messge info
-//     let info = MessageInfo{
-//         sender: Addr::unchecked(contract_address.clone()), // TODO check the address is sender
-//         funds: vcoin.to_vec()};
-//
-//     let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
-//         Ok(querier.generate_call_info(contract_address.clone()))
-//     })?;
-//
-//     // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
-//     let cache: Cache<A, S, Q>; // get from callback// 获取cache
-//     let backend = Backend {
-//         api: env.api.clone(),
-//         storage: MockStorage::new(), // get from callback should give contract address
-//         querier: MockQuerier::new(&[])  // get from callback should give contract address
-//     };
-//     // 1. 可以先在wasmvm层面记录一个callID与content的对应关系，同时在wasmvm层记录给出获取keeper中cache的接口，然后在传入
-//     // wasmvm中组装起来 instalce
-//
-//     // 2. 后面有时间再研究从env的query接口中获取content方法
-//
-//     let options = InstanceOptions{
-//         gas_limit: env.get_gas_left(),
-//         print_debug: env.print_debug,
-//     };
-//
-//     let mut new_instance = cache.get_instance(&Checksum::from(checksum), backend, options)?;
-//     new_instance.set_call_depth(env.call_depth + 1);
-//
-//     let result = call_execute(&mut new_instance, &benv, &info, call_msg.as_slice())?;
-//
-//     // set the gas
-//     // let new_limit = left_gas - gas_consume;
-//     // env.set_gas_left(new_limit);
-//     process_gas_info::<A, S, Q>(env, GasInfo::with_cost(new_instance.get_gas_left()))?; // TODO need to handle gas in other func
-//
-//     let serialized = to_vec(&result)?;
-//     write_to_contract::<A, S, Q>(env, &serialized)
-//  }
-
-//  pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
-//     env: &Environment<A, S, Q>,
-//     msg_ptr: u32,
-//     env_ptr: u32, // or get from the go callback
-//     caller_ptr: u32,
-// ) -> VmResult<u32> {
-//     if env.call_depth + 1 > Max_CALL_depth {
-//         return Err(VmError::aborted("more than the max call depth"));
-//     }
-//     return Ok(1);
-//     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
-//     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
-//     let caller_data = read_region(&env.memory(), caller_ptr, Max_CALLER_LENGTH)?;
-//
-//     let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
-//     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
-//     let call_msg: Binary;
-//     let contract_address: String;
-//     let vcoin: Vec<Coin>;
-//     match calld {
-//         WasmMsg::Execute { contract_addr, msg, funds} => {
-//             call_msg = msg;
-//             contract_address = contract_addr;
-//             vcoin = funds;
-//         }
-//         _ => {
-//             return Err(VmError::parse_err("contract","parse not WasmMsg::Execute"));
-//         }
-//     }
-//
-//     // set messge info
-//     let info = MessageInfo{
-//         sender: Addr::unchecked(contract_address.clone()), // TODO check the address is sender
-//         funds: vcoin.to_vec()};
-//
-//     let (checksum) = env.with_querier_from_context::<_, _>(|querier| {
-//         Ok(querier.generate_call_info(contract_address.clone()))
-//     })?;
-//     // TODO make a new instance need get a cache from wasmvm or get exchain wasm keeper
-//     let cache: Cache<A, S, Q>; // get from callback
-//     let backend: Backend<A, S, Q> = Backend {
-//         api: env.api.clone(),
-//         storage: MockStorage::default(), // get from callback should give caller address
-//         querier: MockQuerier::new(&[])  // get from callback
-//     };
-//
-//     let options = InstanceOptions{
-//         gas_limit: env.get_gas_left(),
-//         print_debug: env.print_debug,
-//     };
-//
-//     let mut new_instance = cache.get_instance(&Checksum::from(checksum), backend, options)?;
-//     new_instance.set_call_depth(env.call_depth + 1);
-//
-//     let result = call_execute(&mut new_instance, &benv, &info, call_msg.as_slice())?;
-//
-//     // set the gas
-//     // let new_limit = left_gas - gas_consume;
-//     // env.set_gas_left(new_limit);
-//     process_gas_info::<A, S, Q>(env, GasInfo::with_cost(new_instance.get_gas_left()))?; // TODO need to handle gas in other func
-//
-//     let serialized = to_vec(&result)?;
-//     write_to_contract::<A, S, Q>(env, &serialized)
-//}
-
 
 #[cfg(feature = "iterator")]
 pub fn do_db_scan<A: BackendApi, S: Storage, Q: Querier>(

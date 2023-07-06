@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::ptr::NonNull;
 use std::sync::Mutex;
-use cosmwasm_std::Addr;
 
 use wasmer::{Exports, Function, ImportObject, Instance as WasmerInstance, Module, Val};
 
@@ -16,7 +15,6 @@ use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
 use crate::size::Size;
 use crate::wasm_backend::compile;
-use crate::imports::write_to_contract;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GasReport {
@@ -375,30 +373,6 @@ where
     /// The function is expected to return one value. Otherwise this calls errors.
     pub(crate) fn call_function1(&self, name: &str, args: &[Val]) -> VmResult<Val> {
         self.env.call_function1(name, args)
-    }
-
-    pub fn set_call_depth(&mut self, call_depth: u32) {
-        self.env.call_depth = call_depth;
-    }
-
-    pub fn get_call_depth(&mut self) -> u32 {
-        self.env.call_depth
-    }
-
-    pub fn write_to_contract(&mut self, input: &[u8]) -> VmResult<u32> {
-        write_to_contract(&self.env, input)
-    }
-
-    pub fn set_sender_addr(&mut self, addr: Addr) {
-        self.env.sender_addr = addr;
-    }
-
-    pub fn get_sender_addr(&mut self) -> Addr {
-        self.env.sender_addr.clone()
-    }
-
-    pub fn set_delegate_contract_addr(&mut self, addr: Addr) {
-        self.env.delegate_contract_addr = addr;
     }
 }
 

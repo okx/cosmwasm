@@ -372,26 +372,21 @@ impl Api for ExternalApi {
         env: &Env,
         msg: &WasmMsg,
     ) -> StdResult<Vec<u8>> {
-        println!("the enter the std call {:?} {:?}", env, msg);
+        println!("rust cosmwasm enter the std call {:?} {:?}", env, msg);
 
         let raw = to_vec(env).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
         }).unwrap();
         let env_send = build_region(&raw);
         let env_ptr = env_send.as_ref() as *const Region as u32;
-        // let env_send = build_region(&to_vec(env).unwrap());
-        // let env_ptr = &*env_send as *const Region as u32;
 
-        let raw1 = to_vec(msg).map_err(|serialize_err| {
+        let raw_msg = to_vec(msg).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
         }).unwrap();
-        let msg_send = build_region(&raw1);
+        let msg_send = build_region(&raw_msg);
         let msg_ptr = msg_send.as_ref() as *const Region as u32;
-        // let msg_send = build_region(&to_vec(msg).unwrap());
-        // let msg_ptr = &*msg_send as *const Region as u32;
 
         let destination = alloc(CALL_RESPONSE_BUFFER_LENGTH);
-
         let result =
             unsafe { call(env_ptr, msg_ptr, destination as u32) };
         if result != 0 {
@@ -404,17 +399,6 @@ impl Api for ExternalApi {
 
         let res = unsafe { consume_region(destination) };
         Ok(res)
-
-        // match result {
-        //     0 => Ok(true),
-        //     1 => Ok(false),
-        //     2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-        //     error_code => Err(VerificationError::unknown_err(error_code)),
-        //     // return Err(StdError::generic_err(format!(
-        //     //     "addr_humanize errored: {}",
-        //     //     error
-        //     // )));
-        // }
     }
 
     fn delegate_call(
@@ -422,26 +406,21 @@ impl Api for ExternalApi {
         env: &Env,
         msg: &WasmMsg,
     ) -> StdResult<Vec<u8>> {
-        println!("the enter the std call {:?} {:?}", env, msg);
+        println!("rust cosmwasm enter the std delegate_call {:?} {:?}", env, msg);
 
         let raw = to_vec(env).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
         }).unwrap();
         let env_send = build_region(&raw);
         let env_ptr = env_send.as_ref() as *const Region as u32;
-        // let env_send = build_region(&to_vec(env).unwrap());
-        // let env_ptr = &*env_send as *const Region as u32;
 
-        let raw1 = to_vec(msg).map_err(|serialize_err| {
+        let raw_msg = to_vec(msg).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
         }).unwrap();
-        let msg_send = build_region(&raw1);
+        let msg_send = build_region(&raw_msg);
         let msg_ptr = msg_send.as_ref() as *const Region as u32;
-        // let msg_send = build_region(&to_vec(msg).unwrap());
-        // let msg_ptr = &*msg_send as *const Region as u32;
 
         let destination = alloc(CALL_RESPONSE_BUFFER_LENGTH);
-
         let result =
             unsafe { delegate_call(env_ptr, msg_ptr, destination as u32) };
         if result != 0 {
@@ -454,94 +433,7 @@ impl Api for ExternalApi {
 
         let res = unsafe { consume_region(destination) };
         Ok(res)
-
-        // let result =
-        //     unsafe { delegate_call(env_ptr, msg_ptr) };
-        // match result {
-        //     0 => Ok(true),
-        //     1 => Ok(false),
-        //     2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-        //     error_code => Err(VerificationError::unknown_err(error_code)),
-        //     // return Err(StdError::generic_err(format!(
-        //     //     "addr_humanize errored: {}",
-        //     //     error
-        //     // )));
-        // }
     }
-
-    // fn call(
-    //     &self,
-    //     env: &Env,
-    //     msg: &WasmMsg,
-    // ) -> Result<bool, VerificationError> {
-    //     println!("the enter the std call {:?} {:?}", env, msg);
-    //
-    //     let raw = to_vec(env).map_err(|serialize_err| {
-    //         StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
-    //     });
-    //     let env_send = build_region(&raw);
-    //     let env_ptr = env_send.as_ref() as *const Region as u32;
-    //     // let env_send = build_region(&to_vec(env).unwrap());
-    //     // let env_ptr = &*env_send as *const Region as u32;
-    //
-    //     let raw1 = to_vec(msg).map_err(|serialize_err| {
-    //         StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
-    //     }).unwrap();
-    //     let msg_send = build_region(&raw1);
-    //     let msg_ptr = msg_send.as_ref() as *const Region as u32;
-    //     // let msg_send = build_region(&to_vec(msg).unwrap());
-    //     // let msg_ptr = &*msg_send as *const Region as u32;
-    //
-    //     let result =
-    //         unsafe { call(env_ptr, msg_ptr) };
-    //     match result {
-    //         0 => Ok(true),
-    //         1 => Ok(false),
-    //         2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-    //         error_code => Err(VerificationError::unknown_err(error_code)),
-    //         // return Err(StdError::generic_err(format!(
-    //         //     "addr_humanize errored: {}",
-    //         //     error
-    //         // )));
-    //     }
-    // }
-    //
-    // fn delegate_call(
-    //     &self,
-    //     env: &Env,
-    //     msg: &WasmMsg,
-    // ) -> Result<bool, VerificationError> {
-    //     println!("the enter the std delegate_call {:?} {:?}", env, msg);
-    //
-    //     let raw = to_vec(env).map_err(|serialize_err| {
-    //         StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
-    //     });
-    //     let env_send = build_region(&raw);
-    //     let env_ptr = env_send.as_ref() as *const Region as u32;
-    //     // let env_send = build_region(&to_vec(env).unwrap());
-    //     // let env_ptr = &*env_send as *const Region as u32;
-    //
-    //     let raw1 = to_vec(msg).map_err(|serialize_err| {
-    //         StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
-    //     }).unwrap();
-    //     let msg_send = build_region(&raw1);
-    //     let msg_ptr = msg_send.as_ref() as *const Region as u32;
-    //     // let msg_send = build_region(&to_vec(msg).unwrap());
-    //     // let msg_ptr = &*msg_send as *const Region as u32;
-    //
-    //     let result =
-    //         unsafe { delegate_call(env_ptr, msg_ptr) };
-    //     match result {
-    //         0 => Ok(true),
-    //         1 => Ok(false),
-    //         2 => panic!("Error code 2 unused since CosmWasm 0.15. This is a bug in the VM."),
-    //         error_code => Err(VerificationError::unknown_err(error_code)),
-    //         // return Err(StdError::generic_err(format!(
-    //         //     "addr_humanize errored: {}",
-    //         //     error
-    //         // )));
-    //     }
-    // }
 
     fn debug(&self, message: &str) {
         // keep the boxes in scope, so we free it at the end (don't cast to pointers same line as build_region)

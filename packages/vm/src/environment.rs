@@ -226,11 +226,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     }
 
     pub fn call_function1(&self, name: &str, args: &[Val]) -> VmResult<Val> {
-        // let gs = self.get_gas_left();
-        // println!("****call_function1 {:?}", gs);
         let result = self.call_function(name, args)?;
-        // let gs1 = self.get_gas_left();
-        // println!("****call_function2 {:?}", gs1);
         let expected = 1;
         let actual = result.len();
         if actual != expected {
@@ -404,15 +400,6 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
         Ok(())
     }
 }
-
-// pub fn get_externally_used_gas<A: BackendApi, S: Storage, Q: Querier>(
-//     env: &Environment<A, S, Q>,
-// ) -> u64 {
-//     let externally_used_gas= env.with_gas_state_mut(|gas_state| {
-//         gas_state.externally_used_gas
-//     });
-//     externally_used_gas
-// }
 
 #[cfg(test)]
 mod tests {

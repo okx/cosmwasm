@@ -129,9 +129,7 @@ where
 {
     let env = to_vec(env)?;
     let info = to_vec(info)?;
-    println!("start the call_execute");
     let data = call_execute_raw(instance, &env, &info, msg)?;
-    println!("end the call_execute {:?}", data);
     let result: ContractResult<Response<U>> =
         from_slice(&data, deserialization_limits::RESULT_EXECUTE)?;
     Ok(result)
@@ -582,17 +580,11 @@ where
         instance.write_memory(region_ptr, arg)?;
         arg_region_ptrs.push(region_ptr.into());
     }
-    println!("start the call_raw");
     let result = instance.call_function1(name, &arg_region_ptrs)?;
-    println!("end the call_raw {:?}", result);
-    println!("start the call_raw 11111");
     let res_region_ptr = ref_to_u32(&result)?;
-    println!("start the call_raw 22222");
     let data = instance.read_memory(res_region_ptr, result_max_length)?;
-    println!("start the call_raw 33333");
     // free return value in wasm (arguments were freed in wasm code)
     instance.deallocate(res_region_ptr)?;
-    println!("start the call_raw 444444");
     Ok(data)
 }
 

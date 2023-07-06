@@ -5,7 +5,7 @@ use std::ops::Deref;
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::binary::Binary;
 use crate::coins::Coin;
-use crate::{Env, Response, WasmMsg};
+use crate::{Env, WasmMsg};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, VerificationError};
 #[cfg(feature = "iterator")]
 use crate::iterator::{Order, Record};
