@@ -133,6 +133,7 @@ pub trait Storage {
 pub trait BackendApi: Copy + Clone + Send {
     fn canonical_address(&self, human: &str) -> BackendResult<Vec<u8>>;
     fn human_address(&self, canonical: &[u8]) -> BackendResult<String>;
+    fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String>;
 }
 
 pub trait Querier {
@@ -146,12 +147,6 @@ pub trait Querier {
     /// The returned gas info (in BackendResult) can exceed the gas limit in cases
     /// where the query could not be aborted exactly at the limit.
     fn query_raw(
-        &self,
-        request: &[u8],
-        gas_limit: u64,
-    ) -> BackendResult<SystemResult<ContractResult<Binary>>>;
-
-    fn create_before(
         &self,
         request: &[u8],
         gas_limit: u64,

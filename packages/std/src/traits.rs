@@ -143,7 +143,14 @@ pub trait Api {
     /// Those messages are not persisted to chain.
     fn debug(&self, message: &str);
 
-    fn create(&self, env: &Env, code: &[u8], init_msg: &[u8]) -> StdResult<Addr>;
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        msg: Binary,
+        admin: String,
+        lable:  String,
+    ) -> StdResult<Addr>;
 }
 
 /// A short-hand alias for the two-level query result (1. accessing the contract, 2. executing query in the contract)

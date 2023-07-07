@@ -28,7 +28,7 @@ const SUPPORTED_IMPORTS: &[&str] = &[
     "env.db_scan",
     #[cfg(feature = "iterator")]
     "env.db_next",
-    "env.create",
+    "env.new_contract",
 ];
 
 /// Lists all entry points we expect to be present when calling a contract.

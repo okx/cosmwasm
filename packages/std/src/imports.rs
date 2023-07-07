@@ -1,4 +1,6 @@
 use std::vec::Vec;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, SystemError, VerificationError};
@@ -10,6 +12,8 @@ use crate::sections::decode_sections2;
 use crate::sections::encode_sections;
 use crate::serde::{from_slice, to_vec};
 use crate::traits::{Api, Querier, QuerierResult, Storage};
+use crate::query::{WasmQuery};
+use crate::binary::Binary;
 #[cfg(feature = "iterator")]
 use crate::{
     iterator::{Order, Record},
@@ -77,7 +81,7 @@ extern "C" {
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
 
-    fn create(env_ptr: u32, code_ptr: u32, init_msg_ptr: u32, checksum_ptr: u32);
+    fn new_contract(request: u32, destination_ptr: u32) -> u32;
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -367,30 +371,50 @@ impl Api for ExternalApi {
         unsafe { debug(region_ptr) };
     }
 
-    fn create(&self, env: &Env, code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
-        let env = build_region(&to_vec(&env).unwrap());
-        let env_ptr = &*env as *const Region as u32;
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        msg: Binary,
+        admin: String,
+        lable:  String,
+    ) -> StdResult<Addr>{
+        let request = ContractCreate {
+            creator: creator_addr,
+            wasm_code: code,
+            init_msg: msg,
+            admin_addr: admin,
+            label: lable,
+        };
 
-        let code = build_region(code);
-        let code_ptr = &*code as *const Region as u32;
+        let raw = to_vec(&request).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+        })?;
+        let req = build_region(&raw);
+        let request_ptr = &*req as *const Region as u32;
+        let addr = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
 
-        let init_msg = build_region(init_msg);
-        let init_msg_ptr = &*init_msg as *const Region as u32;
+        let result = unsafe { new_contract(request_ptr, addr as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "new contract errored: {}",
+                error
+            )));
+        }
 
-        let checksum = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
-
-        unsafe { create(env_ptr, code_ptr, init_msg_ptr, checksum as u32) };
-        // if result != 0 {
-        //     // let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
-        //     // return Err(StdError::generic_err(format!(
-        //     //     "addr_humanize errored: {}",
-        //     //     error
-        //     // )));
-        // }
-
-        let address = unsafe { consume_string_region_written_by_vm(checksum) };
+        let address = unsafe { consume_string_region_written_by_vm(addr) };
         Ok(Addr::unchecked(address))
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq, JsonSchema)]
+pub struct ContractCreate {
+    pub creator: String,
+    pub wasm_code: Binary,
+    pub init_msg: Binary,
+    pub admin_addr: String,
+    pub label: String,
 }
 
 /// Takes a pointer to a Region and reads the data into a String.

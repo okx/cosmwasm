@@ -1,6 +1,6 @@
 use cosmwasm_std::testing::{digit_sum, riffle_shuffle};
 use cosmwasm_std::{
-    Addr, BlockInfo, Coin, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo,
+    Addr, BlockInfo, Coin, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo,SystemResult,ContractResult,Binary,
 };
 
 use super::querier::MockQuerier;
@@ -154,6 +154,10 @@ impl BackendApi for MockApi {
             Err(err) => Err(err.into()),
         };
         (result, gas_info)
+    }
+
+    fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String> {
+        todo!()
     }
 }
 

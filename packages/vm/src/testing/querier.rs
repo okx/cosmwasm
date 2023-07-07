@@ -84,10 +84,6 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
         // We don't use FFI in the mock implementation, so BackendResult is always Ok() regardless of error on other levels
         (Ok(response), gas_info)
     }
-
-    fn create_before(&self, request: &[u8], gas_limit: u64) -> BackendResult<SystemResult<ContractResult<Binary>>> {
-        todo!()
-    }
 }
 
 impl MockQuerier {

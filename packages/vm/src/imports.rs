@@ -48,7 +48,7 @@ const MAX_LENGTH_CANONICAL_ADDRESS: usize = 64;
 /// The maximum allowed size for [bech32](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki#bech32)
 /// is 90 characters and we're adding some safety margin around that for other formats.
 const MAX_LENGTH_HUMAN_ADDRESS: usize = 256;
-const MAX_LENGTH_QUERY_CHAIN_REQUEST: usize = 64 * KI;
+const MAX_LENGTH_QUERY_CHAIN_REQUEST: usize = 64 * MI;
 /// Length of a serialized Ed25519  signature
 const MAX_LENGTH_ED25519_SIGNATURE: usize = 64;
 /// Max length of a Ed25519 message in bytes.
@@ -258,6 +258,37 @@ pub fn do_addr_humanize<A: BackendApi + 'static, S: Storage + 'static, Q: Querie
     match result {
         Ok(human) => {
             write_region(&data.memory(&mut store), destination_ptr, human.as_bytes())?;
+            Ok(0)
+        }
+        Err(BackendError::UserErr { msg, .. }) => {
+            Ok(write_to_contract(data, &mut store, msg.as_bytes())?)
+        }
+        Err(err) => Err(VmError::from(err)),
+    }
+}
+
+pub fn do_new_contract<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    source_ptr: u32,
+    destination_ptr: u32,
+) -> VmResult<u32> {
+    let (data, mut store) = env.data_and_store_mut();
+
+    let source_data = read_region(
+        &data.memory(&mut store),
+        source_ptr,
+        MAX_LENGTH_QUERY_CHAIN_REQUEST,
+    )?;
+    if source_data.is_empty() {
+        return write_to_contract(data, &mut store, b"Input is empty");
+    }
+
+    let gas_remaining = data.get_gas_left(&mut store);
+    let (result, gas_info) = data.api.new_contract(&source_data, gas_remaining);
+    process_gas_info(data, &mut store, gas_info)?;
+    match result {
+        Ok(addr) => {
+            write_region(&data.memory(&mut store), destination_ptr, addr.as_bytes())?;
             Ok(0)
         }
         Err(BackendError::UserErr { msg, .. }) => {
@@ -558,88 +589,6 @@ pub fn do_db_next<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
     write_to_contract(data, &mut store, &out_data)
 }
 
-pub fn do_create<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
-    mut env: FunctionEnvMut<Environment<A, S, Q>>,
-    env_ptr: u32,
-    code_ptr: u32,
-    init_msg_ptr: u32,
-    checksum_ptr: u32,
-) -> VmResult<()> {
-    let (data, mut store) = env.data_and_store_mut();
-
-    // let gas_remaining = data.get_gas_left(&mut store);
-    // let (result, gas_info) = data.with_querier_from_context::<_, _>(|querier| {
-    //     Ok(querier.create_before("sdsd".as_bytes(), gas_remaining))
-    // })?;
-    // let serialized = to_vec(&result?)?;
-    //
-    // println!("{}",serialized.len());
-    let env1: Env = Env {
-        block: BlockInfo{
-            height: 0,
-            time: Default::default(),
-            chain_id: "".to_string(),
-        },
-        transaction: None,
-        contract: cosmwasm_std::ContractInfo { address: Addr::unchecked("sender") },
-    };
-    let env2 = cosmwasm_std::to_vec(&env1).unwrap();
-    println!("{:?}",env2);
-
-    let tx_env = read_region(&data.memory(&mut store), env_ptr, MAX_LENGTH_ABORT)?;
-    println!("{:?}",tx_env);
-    let tx_env: Env = cosmwasm_std::from_slice::<Env>(&tx_env).unwrap();
-    println!("{}",tx_env.block.chain_id);
-    // let code = read_region(&data.memory(&mut store), code_ptr, MAX_LENGTH_ABORT)?;
-    // let init_msg = read_region(&data.memory(&mut store), init_msg_ptr, MAX_LENGTH_ABORT)?;
-    //
-    // // 1. save wasm code
-    // // TODO CacheOptions value is tmp
-    // let options = CacheOptions {
-    //     base_dir: TempDir::new().unwrap().into_path(),
-    //     available_capabilities: capabilities_from_csv("iterator,staking"),
-    //     memory_cache_size:  Size::mebi(200),
-    //     instance_memory_limit: Size::mebi(16),
-    // };
-    // let cache = unsafe { Cache::new(options).unwrap() };
-    // let checksum = cache.save_wasm(code.as_slice()).unwrap();
-    //
-    // // 2. instantiate
-    // let (Some(storage), Some(querier)) = data.move_out() else { todo!() };
-    // let backend = Backend {
-    //     api: data.api,
-    //     storage: storage ,
-    //     querier: querier,
-    // };
-    // let options = InstanceOptions {
-    //     gas_limit: 10, // TODO can come from arg?
-    //     print_debug: false,
-    // };
-    // // TODO
-    // let info = MessageInfo {
-    //     sender: Addr::unchecked("sender"),
-    //     funds: (&coins(1000, "earth")).to_vec(),
-    // };
-    // let mut instance = cache.get_instance(&checksum, backend, options).unwrap();
-    // let res = call_instantiate::<_, _, _, Empty>(&mut instance, &tx_env, &info, init_msg.as_slice()).unwrap();
-    // // ignore message
-    // // let msgs = res.unwrap().messages;
-    //
-    // // TODO gas
-    // // process_gas_info(data, &mut store, gas_info)?;
-    //
-    // // set contract addr
-    // if res.into_result().is_ok() {
-    //   return write_region(
-    //         &data.memory(&mut store),
-    //         checksum_ptr,
-    //         checksum.to_hex().as_bytes(),
-    //     )
-    // }
-
-    Ok(())
-}
-
 fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+ 'static>(
     data: &Environment<A, S, Q>,
     store: &mut impl AsStoreMut,
@@ -768,7 +717,7 @@ mod tests {
                 "ed25519_batch_verify" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_typed(&mut store, |_a: u32| {}),
                 "abort" => Function::new_typed(&mut store, |_a: u32| {}),
-                "create" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32, _d: u32| -> u32 { 0 }),
+                "new_contract" => Function::new_typed(&mut store, |_a: u32, _b: u32| -> u32 { 0 }),
             },
         };
         let wasmer_instance =

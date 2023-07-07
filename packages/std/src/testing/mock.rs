@@ -229,8 +229,15 @@ impl Api for MockApi {
         println!("{}", message);
     }
 
-    fn create(&self, env: &Env, code: &[u8], init_msg: &[u8]) -> StdResult<Addr> {
-        Ok(Addr::unchecked("human"))
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        msg: Binary,
+        admin: String,
+        lable:  String,
+    ) -> StdResult<Addr>{
+        todo!()
     }
 }
 
