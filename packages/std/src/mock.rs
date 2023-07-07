@@ -216,7 +216,15 @@ impl Api for MockApi {
         env: &Env,
         msg: &WasmMsg,
     ) -> StdResult<Vec<u8>> {
-        todo!()
+        match msg {
+            WasmMsg::Execute { contract_addr: _, msg, funds:_} => {
+                println!("env {:?}", env);
+                Ok(msg.to_vec())
+            }
+            _ => {
+                return Err(StdError::generic_err("the WasmMsg is not Execute"));
+            }
+        }
     }
 
     fn delegate_call(
@@ -224,7 +232,15 @@ impl Api for MockApi {
         env: &Env,
         msg: &WasmMsg,
     ) -> StdResult<Vec<u8>> {
-        todo!()
+        match msg {
+            WasmMsg::Execute { contract_addr: _, msg, funds:_} => {
+                println!("env {:?}", env);
+                Ok(msg.to_vec())
+            }
+            _ => {
+                return Err(StdError::generic_err("the WasmMsg is not Execute"));
+            }
+        }
     }
 
     fn debug(&self, message: &str) {
@@ -1074,6 +1090,98 @@ mod tests {
 
         let res = api.ed25519_batch_verify(&msgs, &signatures, &public_keys);
         assert_eq!(res.unwrap_err(), VerificationError::InvalidPubkeyFormat);
+    }
+
+    #[test]
+    fn call_works() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let exe_msg = String::from("{\"subtract\":{}}");
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let res= api.call(&benv, &msg);
+        assert_eq!(res.unwrap(), exe_msg.into_bytes());
+    }
+
+    #[test]
+    fn call_errors() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let msg = WasmMsg::UpdateAdmin {
+            contract_addr: String::from("contract2"),
+            admin: String::from("admin1")
+        };
+        let res= api.call(&benv, &msg);
+        assert_eq!(res.unwrap_err(), StdError::generic_err("the WasmMsg is not Execute"));
+    }
+
+    #[test]
+    fn delegate_call_works() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let exe_msg = String::from("{\"subtract\":{}}");
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let res= api.delegate_call(&benv, &msg);
+        assert_eq!(res.unwrap(), exe_msg.into_bytes());
+    }
+
+    #[test]
+    fn delegate_call_errors() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let msg = WasmMsg::UpdateAdmin {
+            contract_addr: String::from("contract2"),
+            admin: String::from("admin1")
+        };
+        let res= api.delegate_call(&benv, &msg);
+        assert_eq!(res.unwrap_err(), StdError::generic_err("the WasmMsg is not Execute"));
     }
 
     #[test]

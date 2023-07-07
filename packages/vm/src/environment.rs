@@ -1,6 +1,6 @@
 //! Internal details to be used by instance.rs only
 use std::borrow::{Borrow, BorrowMut};
-use std::ptr::NonNull;
+use std::ptr::{addr_of, NonNull};
 use std::sync::{Arc, RwLock};
 
 use wasmer::{HostEnvInitError, Instance as WasmerInstance, Memory, Val, WasmerEnv};
@@ -353,6 +353,16 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             (context_data.storage.take(), context_data.querier.take())
         })
     }
+
+    // for ut
+    pub fn set_sender_addr(&mut self, addr: Addr) {
+        self.sender_addr = addr
+    }
+
+    // for ut
+    pub fn set_delegate_contract_addr(&mut self, addr: Addr) {
+        self.delegate_contract_addr = addr
+    }
 }
 
 pub struct ContextData<S: Storage, Q: Querier> {
@@ -455,6 +465,8 @@ mod tests {
                 "secp256k1_recover_pubkey" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u64 { 0 }),
                 "ed25519_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "ed25519_batch_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "delegate_call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_native(store, |_a: u32| {}),
             },
         };

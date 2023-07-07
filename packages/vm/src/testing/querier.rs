@@ -1,9 +1,9 @@
 use serde::de::DeserializeOwned;
 
 use cosmwasm_std::testing::{MockQuerier as StdMockQuerier, MockQuerierCustomHandlerResult};
-use cosmwasm_std::{to_binary, to_vec, Binary, Coin, ContractResult, CustomQuery, Empty, Querier as _, QueryRequest, SystemError, SystemResult, MessageInfo, Env};
+use cosmwasm_std::{to_binary, to_vec, Binary, Coin, ContractResult, CustomQuery, Empty, Querier as _, QueryRequest, SystemError, SystemResult, MessageInfo, Env, Addr};
 
-use crate::{backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier, VmResult};
+use crate::{backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier, VmError, VmResult};
 
 const GAS_COST_QUERY_FLAT: u64 = 100_000;
 /// Gas per request byte
@@ -89,7 +89,22 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
                                                                  block_env: &Env,
                                                                  gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo) {
-        todo!()
+        let gas_info = GasInfo::new(100, 100);
+        // check the MessageInfo
+        if contract_address != String::from("contract2") {
+            return (Err(VmError::generic_err("invalid contract_address")), gas_info)
+        }
+        if info.sender != Addr::unchecked(String::from("contract1")) {
+            return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
+        }
+        if block_env.contract.address != String::from("contract2") {
+            return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
+        }
+        if gas_info.externally_used > gas_limit {
+           return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
+        }
+        let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
+        (Ok(res.into_bytes()), gas_info)
     }
     fn delegate_call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                                       contract_address: String,
@@ -98,7 +113,26 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
                                                                       block_env: &Env,
                                                                       gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo) {
-        todo!()
+        let gas_info = GasInfo::new(100, 100);
+        // check the MessageInfo
+        if contract_address != String::from("contract2") {
+            return (Err(VmError::generic_err("invalid contract_address")), gas_info)
+        }
+        if info.sender != Addr::unchecked(String::from("sender1")) {
+            return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
+        }
+        if block_env.contract.address != String::from("contract2") {
+            return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
+        }
+        if gas_info.externally_used > gas_limit {
+            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
+        }
+
+        if gas_info.externally_used > gas_limit {
+            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
+        }
+        let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
+        (Ok(res.into_bytes()), gas_info)
     }
 }
 
