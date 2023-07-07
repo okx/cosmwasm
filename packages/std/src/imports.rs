@@ -12,14 +12,11 @@ use crate::sections::decode_sections2;
 use crate::sections::encode_sections;
 use crate::serde::{from_slice, to_vec};
 use crate::traits::{Api, Querier, QuerierResult, Storage};
-use crate::query::{WasmQuery};
-use crate::binary::Binary;
 #[cfg(feature = "iterator")]
 use crate::{
     iterator::{Order, Record},
     memory::get_optional_region_address,
 };
-use crate::{Env,BlockInfo,ContractInfo};
 
 
 /// An upper bound for typical canonical address lengths (e.g. 20 in Cosmos SDK/Ethereum or 32 in Nano/Substrate)

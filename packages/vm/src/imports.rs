@@ -2,7 +2,7 @@
 
 use std::cmp::max;
 use std::marker::PhantomData;
-use tempfile::TempDir;
+
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
 };
@@ -11,9 +11,8 @@ use cosmwasm_crypto::{
 };
 
 #[cfg(feature = "iterator")]
-use cosmwasm_std::{Order, Empty, MessageInfo, Addr, coins, Env};
+use cosmwasm_std::Order;
 use wasmer::{AsStoreMut, FunctionEnvMut};
-use cosmwasm_std::BlockInfo;
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
@@ -79,6 +78,7 @@ pub fn do_db_read<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 's
     key_ptr: u32,
 ) -> VmResult<u32> {
     let (data, mut store) = env.data_and_store_mut();
+
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
     let (result, gas_info) = data.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
@@ -119,6 +119,7 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     value_ptr: u32,
 ) -> VmResult<()> {
     let (data, mut store) = env.data_and_store_mut();
+
     if data.is_storage_readonly() {
         return Err(VmError::write_access_denied());
     }

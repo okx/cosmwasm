@@ -1,6 +1,6 @@
 use cosmwasm_std::testing::{digit_sum, riffle_shuffle};
 use cosmwasm_std::{
-    Addr, BlockInfo, Coin, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo,SystemResult,ContractResult,Binary,
+    Addr, BlockInfo, Coin, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo,
 };
 
 use super::querier::MockQuerier;

@@ -51,7 +51,6 @@ sha2 = "0.10.3"
 thiserror = "1.0.26"
 wasmer = { version = "=3.3.0", default-features = false, features = ["cranelift", "singlepass"] }
 wasmer-middlewares = "=3.3.0"
-tempfile = "3.1.0"
 
 # Dependencies that we do not use ourself. We add those entries
 # to bump the min version of them.
