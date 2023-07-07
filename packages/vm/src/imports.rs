@@ -25,13 +25,7 @@ use crate::sections::decode_sections;
 #[allow(unused_imports)]
 use crate::sections::encode_sections;
 use crate::serde::{to_vec, from_slice};
-use crate::{Backend, GasInfo};
-use crate::Cache;
-use crate::CacheOptions;
-use crate::calls::{call_instantiate};
-use crate::instance::InstanceOptions;
-use crate::size::Size;
-use crate::capabilities::capabilities_from_csv;
+use crate::GasInfo;
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
