@@ -595,13 +595,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{mock_env, mock_info, mock_instance};
+    use crate::testing::{mock_env, mock_info, mock_instance, mock_instance_with_gas_limit};
     use cosmwasm_std::{coins, Empty};
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
     static CYBERPUNK: &[u8] = include_bytes!("../testdata/cyberpunk.wasm");
-    static Counter: &[u8] = include_bytes!("../testdata/counter.wasm");
-    static CounterRW: &[u8] = include_bytes!("../testdata/counterRW.wasm");
+    static COUNTER: &[u8] = include_bytes!("../testdata/counter.wasm");
+    static COUNTER_RW: &[u8] = include_bytes!("../testdata/counterRW.wasm");
+    static COUNTER_TEST_GAS: &[u8] = include_bytes!("../testdata/ex_test/u1.wasm");
+    static COUNTER_TEST_DB_READ_EX: &[u8] = include_bytes!("../testdata/ex_test/u1000.wasm");
+    static COUNTER_TEST_DB_READ_EX_LIMIT: &[u8] = include_bytes!("../testdata/ex_test/u100000000000000000000000.wasm");
 
 
     #[test]
@@ -616,8 +619,8 @@ mod tests {
             .unwrap();
     }
     #[test]
-    fn call_execute_read_worksPerf() {
-        let mut instance = mock_instance(Counter, &[]);
+    fn call_execute_read_works_perf() {
+        let mut instance = mock_instance(COUNTER, &[]);
 
         // init
         let info = mock_info("creator", &coins(1000, "earth"));
@@ -635,9 +638,8 @@ mod tests {
     }
 
     #[test]
-    fn call_execute_write_worksPerf() {
-        let mut instance = mock_instance(Counter, &[]);
-
+    fn call_execute_write_works_perf() {
+        let mut instance = mock_instance(COUNTER, &[]);
         // init
         let info = mock_info("creator", &coins(1000, "earth"));
         let msg = br#"{}"#;
@@ -654,8 +656,8 @@ mod tests {
     }
 
     #[test]
-    fn call_execute_works_RWPerf() {
-        let mut instance = mock_instance(CounterRW, &[]);
+    fn call_execute_works_rwperf() {
+        let mut instance = mock_instance(COUNTER_RW, &[]);
 
         // init
         let info = mock_info("creator", &coins(1000, "earth"));
@@ -671,6 +673,84 @@ mod tests {
             .unwrap()
             .unwrap();
     }
+
+    #[test]
+    fn test_db_read_ex(){
+        let mut instance = mock_instance_with_gas_limit(COUNTER_TEST_DB_READ_EX, 50000000000000);
+
+        // init
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let msg = br#"{}"#;
+        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
+        assert_eq!(result.unwrap().unwrap().attributes[1].value,"1000");
+
+
+        let mut instance = mock_instance_with_gas_limit(COUNTER_TEST_DB_READ_EX_LIMIT, 50000000000000);
+
+        // init
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let msg = br#"{}"#;
+        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
+        let result1 = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
+        assert_eq!(result1.unwrap().unwrap().attributes[1].value,"100000000000000000000000")
+
+    }
+
+    #[test]
+    fn test_gas_ex(){
+        let mut instance = mock_instance_with_gas_limit(COUNTER_TEST_GAS, 50000000000000);
+
+        // init
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let msg = br#"{}"#;
+        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+        assert_eq!(instance.get_gas_left(),49989926749926);
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"500"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+        assert_eq!(instance.get_gas_left(),49940396144936);
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"5000"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+        assert_eq!(instance.get_gas_left(),49495264944946);
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"9999999"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
+        assert_eq!(result.is_err(),true);
+    }
+
 
     #[test]
     fn call_execute_works() {
