@@ -453,9 +453,6 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
     msg_ptr: u32,
     destination_ptr: u32,
 ) -> VmResult<u32> {
-    //env::set_var("RUST_BACKTRACE", "full");
-    println!("rust cosmwasm enter the vm do_call call depth {}", env.call_depth);
-
     if env.call_depth + 1 > MAX_CALL_DEPTH {
         return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
@@ -465,8 +462,6 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
 
     let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
-
-    println!("rust cosmwasm do_call block env is {:?} wasmMsg is {:?}", benv, calld);
 
     let call_msg: Binary;
     let contract_address: String;
@@ -506,7 +501,6 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
 
     match result {
         Ok(data) => {
-            println!("rust cosmwasm call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }
@@ -523,10 +517,6 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     msg_ptr: u32,
     destination_ptr: u32,
 ) -> VmResult<u32> {
-    //env::set_var("RUST_BACKTRACE", "full");
-    println!("rust cosmwasm enter the vm do_delegate_call call depth {} sender addr {} delecall addr {}",
-             env.call_depth, env.sender_addr, env.delegate_contract_addr);
-
     if env.call_depth + 1 > MAX_CALL_DEPTH {
         return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
     }
@@ -536,8 +526,6 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
 
     let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
-
-    println!("rust cosmwasm do_delegate_call block env is {:?} wasmMsg is {:?}", benv, calld);
 
     let call_msg: Binary;
     let contract_address: String;
@@ -576,7 +564,6 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
 
     match result {
         Ok(data) => {
-            println!("rust cosmwasm the delegate call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }

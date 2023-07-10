@@ -372,8 +372,6 @@ impl Api for ExternalApi {
         env: &Env,
         msg: &WasmMsg,
     ) -> StdResult<Vec<u8>> {
-        println!("rust cosmwasm enter the std call {:?} {:?}", env, msg);
-
         let raw = to_vec(env).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
         }).unwrap();
@@ -406,8 +404,6 @@ impl Api for ExternalApi {
         env: &Env,
         msg: &WasmMsg,
     ) -> StdResult<Vec<u8>> {
-        println!("rust cosmwasm enter the std delegate_call {:?} {:?}", env, msg);
-
         let raw = to_vec(env).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
         }).unwrap();
