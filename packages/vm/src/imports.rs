@@ -41,7 +41,7 @@ const MAX_LENGTH_CANONICAL_ADDRESS: usize = 64;
 /// The maximum allowed size for [bech32](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki#bech32)
 /// is 90 characters and we're adding some safety margin around that for other formats.
 const MAX_LENGTH_HUMAN_ADDRESS: usize = 256;
-const MAX_LENGTH_QUERY_CHAIN_REQUEST: usize = 64 * MI;
+const MAX_LENGTH_QUERY_CHAIN_REQUEST: usize = 64 * KI;
 /// Length of a serialized Ed25519  signature
 const MAX_LENGTH_ED25519_SIGNATURE: usize = 64;
 /// Max length of a Ed25519 message in bytes.
@@ -58,6 +58,8 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
+
+const MAX_LENGTH_NEW_CONTRACT_REQUEST: usize = 2 * MI;
 
 // Import implementations
 //
@@ -272,7 +274,7 @@ pub fn do_new_contract<A: BackendApi + 'static, S: Storage + 'static, Q: Querier
     let source_data = read_region(
         &data.memory(&mut store),
         source_ptr,
-        MAX_LENGTH_QUERY_CHAIN_REQUEST,
+        MAX_LENGTH_NEW_CONTRACT_REQUEST,
     )?;
     if source_data.is_empty() {
         return write_to_contract(data, &mut store, b"Input is empty");
