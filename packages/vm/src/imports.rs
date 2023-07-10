@@ -57,6 +57,9 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+/// Max length for a create contract message
+const MAX_LENGTH_NEW_CONTRACT_REQUEST: usize = 2 * MI;
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -393,6 +396,35 @@ pub fn do_debug<A: BackendApi, S: Storage, Q: Querier>(
         println!("{}", msg);
     }
     Ok(())
+}
+
+pub fn do_new_contract<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    source_ptr: u32,
+    destination_ptr: u32,
+) -> VmResult<u32> {
+    let source_data = read_region(
+        &env.memory(),
+        source_ptr,
+        MAX_LENGTH_NEW_CONTRACT_REQUEST,
+    )?;
+    if source_data.is_empty() {
+        return write_to_contract::<A, S, Q>(env, b"Input is empty");
+    }
+
+    let gas_remaining = env.get_gas_left();
+    let (result, gas_info) = env.api.new_contract(&source_data, gas_remaining);
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+    match result {
+        Ok(addr) => {
+            write_region(&env.memory(), destination_ptr, addr.as_bytes())?;
+            Ok(0)
+        }
+        Err(BackendError::UserErr { msg, .. }) => {
+            Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        }
+        Err(err) => Err(VmError::from(err)),
+    }
 }
 
 /// Aborts the contract and shows the given error message

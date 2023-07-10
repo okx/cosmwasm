@@ -228,6 +228,17 @@ impl Api for MockApi {
     fn debug(&self, message: &str) {
         println!("{}", message);
     }
+
+    fn new_contract(
+        &self,
+        _creator_addr: String,
+        _code: Binary,
+        _msg: Binary,
+        _admin: String,
+        _lable:  String,
+    ) -> StdResult<Addr>{
+        todo!()
+    }
 }
 
 /// Returns a default enviroment with height, time, chain_id, and contract address

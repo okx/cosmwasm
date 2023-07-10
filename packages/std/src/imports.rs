@@ -1,4 +1,6 @@
 use std::vec::Vec;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, SystemError, VerificationError};
@@ -8,7 +10,7 @@ use crate::results::SystemResult;
 #[cfg(feature = "iterator")]
 use crate::sections::decode_sections2;
 use crate::sections::encode_sections;
-use crate::serde::from_slice;
+use crate::serde::{from_slice, to_vec};
 use crate::traits::{Api, Querier, QuerierResult, Storage};
 #[cfg(feature = "iterator")]
 use crate::{
@@ -74,6 +76,8 @@ extern "C" {
     /// Executes a query on the chain (import). Not to be confused with the
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
+
+    fn new_contract(request: u32, destination_ptr: u32) -> u32;
 }
 
 /// A stateless convenience wrapper around database imports provided by the VM.
@@ -362,6 +366,52 @@ impl Api for ExternalApi {
         let region_ptr = region.as_ref() as *const Region as u32;
         unsafe { debug(region_ptr) };
     }
+
+
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        msg: Binary,
+        admin: String,
+        lable:  String,
+    ) -> StdResult<Addr>{
+        let request = ContractCreate {
+            creator: creator_addr,
+            wasm_code: code,
+            init_msg: msg,
+            admin_addr: admin,
+            label: lable,
+        };
+
+        let raw = to_vec(&request).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+        })?;
+        let req = build_region(&raw);
+        let request_ptr = &*req as *const Region as u32;
+        let addr = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
+
+        let result = unsafe { new_contract(request_ptr, addr as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "new contract errored: {}",
+                error
+            )));
+        }
+
+        let address = unsafe { consume_string_region_written_by_vm(addr) };
+        Ok(Addr::unchecked(address))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq, JsonSchema)]
+pub struct ContractCreate {
+    pub creator: String,
+    pub wasm_code: Binary,
+    pub init_msg: Binary,
+    pub admin_addr: String,
+    pub label: String,
 }
 
 /// Takes a pointer to a Region and reads the data into a String.

@@ -155,6 +155,10 @@ impl BackendApi for MockApi {
         };
         (result, gas_info)
     }
+
+    fn new_contract(&self, _request: &[u8], _gas_limit: u64) -> BackendResult<String> {
+        todo!()
+    }
 }
 
 /// Returns a default enviroment with height, time, chain_id, and contract address
