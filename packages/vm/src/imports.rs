@@ -478,6 +478,9 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
         }
+        Err(VmError::BackendErr{ source:BackendError::UserErr { msg }, ..}) => {
+            Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        }
         Err(err) => Err(VmError::from(err)),
     }
 }
@@ -544,6 +547,9 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
             println!("rust cosmwasm the delegate call gas left {} return data is {:?} ", env.get_gas_left(), String::from_utf8(data.clone()).unwrap());
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
             Ok(0)
+        }
+        Err(VmError::BackendErr{ source:BackendError::UserErr { msg }, ..}) => {
+            Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
         }
         Err(err) => Err(VmError::from(err)),
     }
@@ -612,6 +618,7 @@ mod tests {
     use cosmwasm_std::{coins, from_binary, AllBalanceResponse, BankQuery, Binary, Empty, QueryRequest, SystemError, SystemResult, WasmQuery, BlockInfo, Timestamp, TransactionInfo, ContractInfo};
     use hex_literal::hex;
     use std::ptr::NonNull;
+    use std::string::String;
     use wasmer::{imports, Function, Instance as WasmerInstance};
 
     use crate::backend::{BackendError, Storage};
@@ -1993,7 +2000,7 @@ mod tests {
              err => panic!("Incorrect error returned: {:?}", err),
         }
 
-        // 4.
+        // 4. invalid contract address
         env.set_gas_left(1000000000000);
         let msg = WasmMsg::Execute {
             contract_addr: String::from("contract3"),
@@ -2010,6 +2017,19 @@ mod tests {
             } => assert_eq!(message, "invalid contract_address"),
             e => panic!("Unexpected error: {:?}", e),
         }
+
+        // 5. test for user err
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract_backend_err"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+        let result = do_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        assert_eq!(result, String::from("test user err").into_bytes());
     }
 
     #[test]
