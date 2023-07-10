@@ -23,6 +23,8 @@ const SUPPORTED_IMPORTS: &[&str] = &[
     "env.ed25519_batch_verify",
     "env.debug",
     "env.query_chain",
+    "env.call",
+    "env.delegate_call",
     #[cfg(feature = "iterator")]
     "env.db_scan",
     #[cfg(feature = "iterator")]
