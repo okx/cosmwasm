@@ -2,7 +2,6 @@
 
 use std::borrow::Borrow;
 use std::cmp::max;
-use std::env;
 
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
@@ -1983,7 +1982,6 @@ mod tests {
 
     #[test]
     fn do_call_errors() {
-        let mock_result =String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
         let api = MockApi::default();
         let (mut env, mut instance) = make_instance(api);
 

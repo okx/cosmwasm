@@ -8,8 +8,6 @@ use cosmwasm_std::{
 
 use crate::{BackendError, BackendResult, GasInfo, Querier, backend, BackendApi, Environment, VmError, VmResult};
 
-use crate::VmError::BackendErr;
-
 const GAS_COST_QUERY_FLAT: u64 = 100_000;
 /// Gas per request byte
 const GAS_COST_QUERY_REQUEST_MULTIPLIER: u64 = 0;
@@ -87,10 +85,10 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
         (Ok(response), gas_info)
     }
 
-    fn call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+    fn call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, _env: &Environment<A, S, Q>,
                                                                  contract_address: String,
                                                                  info: &MessageInfo,
-                                                                 call_msg: &[u8],
+                                                                 _call_msg: &[u8],
                                                                  block_env: &Env,
                                                                  gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo) {
@@ -116,10 +114,10 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
         let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
         (Ok(res.into_bytes()), gas_info)
     }
-    fn delegate_call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+    fn delegate_call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, _env: &Environment<A, S, Q>,
                                                                       contract_address: String,
                                                                       info: &MessageInfo,
-                                                                      call_msg: &[u8],
+                                                                      _call_msg: &[u8],
                                                                       block_env: &Env,
                                                                       gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo) {
