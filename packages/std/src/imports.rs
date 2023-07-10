@@ -17,6 +17,7 @@ use crate::{
     iterator::{Order, Record},
     memory::get_optional_region_address,
 };
+pub use crate::binary::Binary;
 
 /// An upper bound for typical canonical address lengths (e.g. 20 in Cosmos SDK/Ethereum or 32 in Nano/Substrate)
 const CANONICAL_ADDRESS_BUFFER_LENGTH: usize = 64;
