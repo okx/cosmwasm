@@ -43,6 +43,10 @@ pub struct InstanceOptions {
     /// Gas limit measured in [CosmWasm gas](https://github.com/CosmWasm/cosmwasm/blob/main/docs/GAS.md).
     pub gas_limit: u64,
     pub print_debug: bool,
+    pub write_cost_flat: u64,
+    pub write_cost_per_byte: u64,
+    pub delete_cost:u64,
+    pub gas_mul: u64,
 }
 
 pub struct Instance<A: BackendApi, S: Storage, Q: Querier> {

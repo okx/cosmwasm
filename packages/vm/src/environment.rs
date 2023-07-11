@@ -28,6 +28,23 @@ pub enum Never {}
 /** gas config data */
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GasConfigInfo {
+    pub write_cost_flat: u64,
+    pub write_cost_per_byte: u64,
+    pub delete_cost:u64,
+    pub gas_mul: u64,
+}
+
+impl Default for GasConfigInfo {
+    fn default() -> Self {
+        write_cost_flat: 2000;
+        write_cost_per_byte: 30;
+        delete_cost: 1000;
+        gas_mul: 38000000;
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct GasConfig {
     /// Gas costs of VM (not Backend) provided functionality
     /// secp256k1 signature verification cost
@@ -129,6 +146,7 @@ pub struct Environment<A, S, Q> {
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
     pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
+    pub gas_config_info: GasConfigInfo,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -150,7 +168,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
 }
 
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64) -> Self {
+    pub fn new(api: A, gas_limit: u64, gas_config_info: GasConfigInfo) -> Self {
         Environment {
             memory: None,
             global_remaining_points:None,
@@ -159,6 +177,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
             state_cache:BTreeMap::new(),
+            gas_config_info,
         }
     }
 
@@ -512,7 +531,7 @@ mod tests {
         Store,
         Box<WasmerInstance>,
     ) {
-        let env = Environment::new(MockApi::default(), gas_limit);
+        let env = Environment::new(MockApi::default(), gas_limit, );
 
         let (engine, module) = compile(CONTRACT, &[]).unwrap();
         let mut store = make_store_with_engine(engine, TESTING_MEMORY_LIMIT);
