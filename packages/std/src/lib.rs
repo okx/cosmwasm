@@ -26,6 +26,7 @@ mod query;
 mod results;
 mod sections;
 mod serde;
+pub mod serde_basic_type;
 mod storage;
 mod timestamp;
 mod traits;
