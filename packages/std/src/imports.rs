@@ -375,14 +375,55 @@ impl Api for ExternalApi {
         code: Binary,
         msg: Binary,
         admin: String,
-        lable:  String,
+        label:  String,
     ) -> StdResult<Addr>{
         let request = ContractCreate {
             creator: creator_addr,
             wasm_code: code,
             init_msg: msg,
             admin_addr: admin,
-            label: lable,
+            label,
+            is_create2: false,
+            salt: Binary::default(),
+        };
+
+        let raw = to_vec(&request).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+        })?;
+        let req = build_region(&raw);
+        let request_ptr = &*req as *const Region as u32;
+        let addr = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
+
+        let result = unsafe { new_contract(request_ptr, addr as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "new contract errored: {}",
+                error
+            )));
+        }
+
+        let address = unsafe { consume_string_region_written_by_vm(addr) };
+        Ok(Addr::unchecked(address))
+    }
+
+    fn new_contract2(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        salt: Binary,
+    ) -> StdResult<Addr>{
+        let request = ContractCreate {
+            creator: creator_addr,
+            wasm_code: code,
+            init_msg: msg,
+            admin_addr: admin,
+            label,
+            is_create2: true,
+            salt,
         };
 
         let raw = to_vec(&request).map_err(|serialize_err| {
@@ -413,6 +454,8 @@ pub struct ContractCreate {
     pub init_msg: Binary,
     pub admin_addr: String,
     pub label: String,
+    pub is_create2: bool,
+    pub salt: Binary,
 }
 
 /// Takes a pointer to a Region and reads the data into a String.

@@ -235,7 +235,19 @@ impl Api for MockApi {
         _code: Binary,
         _msg: Binary,
         _admin: String,
-        _lable:  String,
+        _label:  String,
+    ) -> StdResult<Addr>{
+        todo!()
+    }
+
+    fn new_contract2(
+        &self,
+        _creator_addr: String,
+        _code: Binary,
+        _msg: Binary,
+        _admin: String,
+        _label:  String,
+        _salt: Binary,
     ) -> StdResult<Addr>{
         todo!()
     }

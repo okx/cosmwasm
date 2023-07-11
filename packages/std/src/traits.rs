@@ -148,7 +148,17 @@ pub trait Api {
         code: Binary,
         msg: Binary,
         admin: String,
-        lable:  String,
+        label:  String,
+    ) -> StdResult<Addr>;
+
+    fn new_contract2(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        salt: Binary,
     ) -> StdResult<Addr>;
 }
 
