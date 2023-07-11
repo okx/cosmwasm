@@ -1,7 +1,3 @@
-use serde::{de::DeserializeOwned, Serialize};
-use std::marker::PhantomData;
-use std::ops::Deref;
-
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::binary::Binary;
 use crate::coin::Coin;
@@ -20,9 +16,20 @@ use crate::query::{
     AllDelegationsResponse, AllValidatorsResponse, BondedDenomResponse, Delegation,
     DelegationResponse, FullDelegation, StakingQuery, Validator, ValidatorResponse,
 };
+#[cfg(feature = "cosmwasm_1_3")]
+use crate::query::{
+    AllDenomMetadataResponse, DelegatorWithdrawAddressResponse, DenomMetadataResponse,
+    DistributionQuery,
+};
 use crate::results::{ContractResult, Empty, SystemResult};
 use crate::serde::{from_binary, to_binary, to_vec};
+use crate::serde_basic_type::{deserialize_from_bytes, SerializeForBasicType};
 use crate::ContractInfoResponse;
+#[cfg(feature = "cosmwasm_1_3")]
+use crate::{DenomMetadata, PageRequest};
+use serde::{de::DeserializeOwned, Serialize};
+use std::marker::PhantomData;
+use std::ops::Deref;
 
 /// Storage provides read and write access to a persistent storage.
 /// If you only want to provide read access, provide `&Storage`
@@ -34,12 +41,13 @@ pub trait Storage {
     /// is not great yet and might not be possible in all backends. But we're trying to get there.
     fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
 
-    #[cfg(feature = "iterator")]
+    fn get_ex(&self, key: &[u8]) -> Option<Vec<u8>>;
+
     /// Allows iteration over a set of key/value pairs, either forwards or backwards.
     ///
     /// The bound `start` is inclusive and `end` is exclusive.
-    ///
     /// If `start` is lexicographically greater than or equal to `end`, an empty range is described, mo matter of the order.
+    #[cfg(feature = "iterator")]
     fn range<'a>(
         &'a self,
         start: Option<&[u8]>,
@@ -47,13 +55,49 @@ pub trait Storage {
         order: Order,
     ) -> Box<dyn Iterator<Item = Record> + 'a>;
 
+    /// Allows iteration over a set of keys, either forwards or backwards.
+    ///
+    /// The bound `start` is inclusive and `end` is exclusive.
+    /// If `start` is lexicographically greater than or equal to `end`, an empty range is described, mo matter of the order.
+    ///
+    /// The default implementation uses [`Storage::range`] and discards the values. More efficient
+    /// implementations might be possible depending on the storage.
+    #[cfg(feature = "iterator")]
+    fn range_keys<'a>(
+        &'a self,
+        start: Option<&[u8]>,
+        end: Option<&[u8]>,
+        order: Order,
+    ) -> Box<dyn Iterator<Item = Vec<u8>> + 'a> {
+        Box::new(self.range(start, end, order).map(|(k, _v)| k))
+    }
+
+    /// Allows iteration over a set of values, either forwards or backwards.
+    ///
+    /// The bound `start` is inclusive and `end` is exclusive.
+    /// If `start` is lexicographically greater than or equal to `end`, an empty range is described, mo matter of the order.
+    ///
+    /// The default implementation uses [`Storage::range`] and discards the keys. More efficient implementations
+    /// might be possible depending on the storage.
+    #[cfg(feature = "iterator")]
+    fn range_values<'a>(
+        &'a self,
+        start: Option<&[u8]>,
+        end: Option<&[u8]>,
+        order: Order,
+    ) -> Box<dyn Iterator<Item = Vec<u8>> + 'a> {
+        Box::new(self.range(start, end, order).map(|(_k, v)| v))
+    }
+
     fn set(&mut self, key: &[u8], value: &[u8]);
+    fn set_ex(&mut self, key: &[u8], value: &[u8]);
 
     /// Removes a database entry at `key`.
     ///
     /// The current interface does not allow to differentiate between a key that existed
     /// before and one that didn't exist. See https://github.com/CosmWasm/cosmwasm/issues/290
     fn remove(&mut self, key: &[u8]);
+    fn remove_ex(&mut self, key: &[u8]);
 }
 
 /// Api are callbacks to system functions implemented outside of the wasm modules.
@@ -192,17 +236,32 @@ impl<'a, C: CustomQuery> QuerierWrapper<'a, C> {
     /// eg. If you don't differentiate between contract missing and contract returned error
     pub fn query<U: DeserializeOwned>(&self, request: &QueryRequest<C>) -> StdResult<U> {
         let raw = to_vec(request).map_err(|serialize_err| {
-            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+            StdError::generic_err(format!("Serializing QueryRequest: {serialize_err}"))
         })?;
         match self.raw_query(&raw) {
             SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
-                "Querier system error: {}",
-                system_err
+                "Querier system error: {system_err}"
             ))),
             SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(
-                format!("Querier contract error: {}", contract_err),
+                format!("Querier contract error: {contract_err}"),
             )),
             SystemResult::Ok(ContractResult::Ok(value)) => from_binary(&value),
+        }
+    }
+    pub fn query_ex<U: SerializeForBasicType>(&self, request: &QueryRequest<C>) -> StdResult<U> {
+        let raw = to_vec(request).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {serialize_err}"))
+        })?;
+        match self.raw_query(&raw) {
+            SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
+                "Querier system error: {system_err}"
+            ))),
+            SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(
+                format!("Querier contract error: {contract_err}"),
+            )),
+            SystemResult::Ok(ContractResult::Ok(value)) => {
+                Ok(deserialize_from_bytes((value).to_vec()).unwrap())
+            }
         }
     }
 
@@ -237,6 +296,41 @@ impl<'a, C: CustomQuery> QuerierWrapper<'a, C> {
         .into();
         let res: AllBalanceResponse = self.query(&request)?;
         Ok(res.amount)
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    pub fn query_delegator_withdraw_address(
+        &self,
+        delegator: impl Into<String>,
+    ) -> StdResult<String> {
+        let request = DistributionQuery::DelegatorWithdrawAddress {
+            delegator_address: delegator.into(),
+        }
+        .into();
+        let res: DelegatorWithdrawAddressResponse = self.query(&request)?;
+        Ok(res.withdraw_address)
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    pub fn query_denom_metadata(&self, denom: impl Into<String>) -> StdResult<DenomMetadata> {
+        let request = BankQuery::DenomMetadata {
+            denom: denom.into(),
+        }
+        .into();
+        let res: DenomMetadataResponse = self.query(&request)?;
+        Ok(res.metadata)
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    pub fn query_all_denom_metadata(
+        &self,
+        pagination: PageRequest,
+    ) -> StdResult<AllDenomMetadataResponse> {
+        let request = BankQuery::AllDenomMetadata {
+            pagination: Some(pagination),
+        }
+        .into();
+        self.query(&request)
     }
 
     // this queries another wasm contract. You should know a priori the proper types for T and U
@@ -274,15 +368,14 @@ impl<'a, C: CustomQuery> QuerierWrapper<'a, C> {
         // we cannot use query, as it will try to parse the binary data, when we just want to return it,
         // so a bit of code copy here...
         let raw = to_vec(&request).map_err(|serialize_err| {
-            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+            StdError::generic_err(format!("Serializing QueryRequest: {serialize_err}"))
         })?;
         match self.raw_query(&raw) {
             SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
-                "Querier system error: {}",
-                system_err
+                "Querier system error: {system_err}"
             ))),
             SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(
-                format!("Querier contract error: {}", contract_err),
+                format!("Querier contract error: {contract_err}"),
             )),
             SystemResult::Ok(ContractResult::Ok(value)) => {
                 if value.is_empty() {
