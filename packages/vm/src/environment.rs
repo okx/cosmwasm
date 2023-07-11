@@ -37,10 +37,12 @@ pub struct GasConfigInfo {
 
 impl Default for GasConfigInfo {
     fn default() -> Self {
-        write_cost_flat: 2000;
-        write_cost_per_byte: 30;
-        delete_cost: 1000;
-        gas_mul: 38000000;
+        GasConfigInfo {
+            write_cost_flat: 2000,
+            write_cost_per_byte: 30,
+            delete_cost: 1000,
+            gas_mul: 38000000,
+        }
     }
 }
 
@@ -163,6 +165,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
             state_cache: self.state_cache.clone(),
+            gas_config_info: self.gas_config_info.clone(),
         }
     }
 }

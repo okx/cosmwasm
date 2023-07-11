@@ -10,7 +10,7 @@ use wasmer::{
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{Environment, KeyType};
+use crate::environment::{Environment, GasConfigInfo, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,
@@ -84,6 +84,7 @@ where
             options.print_debug,
             None,
             None,
+            GasConfigInfo::default(),
         )
     }
 
@@ -96,9 +97,10 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
+        gas_config_info: GasConfigInfo,
     ) -> VmResult<Self> {
         let fe = FunctionEnv::new(&mut store, {
-            let e = Environment::new(backend.api, gas_limit);
+            let e = Environment::new(backend.api, gas_limit, gas_config_info);
             if print_debug {
                 e.set_debug_handler(Some(Rc::new(|msg: &str, _gas_remaining| {
                     eprintln!("{msg}");
@@ -515,6 +517,7 @@ where
         print_debug,
         extra_imports,
         None,
+        GasConfigInfo::default(),
     )
 }
 
@@ -676,6 +679,7 @@ mod tests {
             false,
             Some(extra_imports),
             None,
+            GasConfigInfo::default(),
         )
         .unwrap();
 

@@ -10,6 +10,7 @@ use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::checksum::Checksum;
 use crate::compatibility::check_wasm;
+use crate::environment::GasConfigInfo;
 use crate::errors::{VmError, VmResult};
 use crate::filesystem::mkdir_p;
 use crate::instance::{Instance, InstanceOptions};
@@ -301,6 +302,10 @@ where
     ) -> VmResult<Instance<A, S, Q>> {
         let (cached, memory_limit, _from_pinned) = self.get_module(checksum)?;
         let store = make_store_with_engine(cached.engine, Some(memory_limit));
+        let gas_config_info = GasConfigInfo{write_cost_flat: options.write_cost_flat,
+            write_cost_per_byte: options.write_cost_per_byte,
+            delete_cost: options.delete_cost,
+            gas_mul: options.gas_mul};
         let instance = Instance::from_module(
             store,
             &cached.module,
@@ -309,6 +314,7 @@ where
             options.print_debug,
             None,
             Some(&self.instantiation_lock),
+            gas_config_info
         )?;
         Ok(instance)
     }

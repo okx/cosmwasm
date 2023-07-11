@@ -8,6 +8,7 @@ use crate::capabilities::capabilities_from_csv;
 use crate::instance::{Instance, InstanceOptions};
 use crate::size::Size;
 use crate::{Backend, BackendApi, Querier, Storage};
+use crate::environment::GasConfigInfo;
 
 use super::mock::{MockApi, MOCK_CONTRACT_ADDR};
 use super::querier::MockQuerier;
@@ -153,6 +154,10 @@ pub fn mock_instance_with_options(
     let options = InstanceOptions {
         gas_limit: options.gas_limit,
         print_debug: options.print_debug,
+        write_cost_flat:GasConfigInfo::default().write_cost_flat,
+        write_cost_per_byte:GasConfigInfo::default().write_cost_per_byte,
+        delete_cost:GasConfigInfo::default().delete_cost,
+        gas_mul:GasConfigInfo::default().gas_mul,
     };
     Instance::from_code(wasm, backend, options, memory_limit).unwrap()
 }
@@ -163,6 +168,10 @@ pub fn mock_instance_options() -> (InstanceOptions, Option<Size>) {
         InstanceOptions {
             gas_limit: DEFAULT_GAS_LIMIT,
             print_debug: DEFAULT_PRINT_DEBUG,
+            write_cost_flat:GasConfigInfo::default().write_cost_flat,
+            write_cost_per_byte:GasConfigInfo::default().write_cost_per_byte,
+            delete_cost:GasConfigInfo::default().delete_cost,
+            gas_mul:GasConfigInfo::default().gas_mul,
         },
         DEFAULT_MEMORY_LIMIT,
     )
