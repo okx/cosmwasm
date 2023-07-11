@@ -154,17 +154,18 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
 }
 
 /// consum gas for set store to chain
-pub fn consum_set_gas_cost(value_length: u32) -> GasInfo {
-    let mut used_gas = DEFAULT_WRITE_COST_FLAT;
-    used_gas += DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
-    used_gas *= DEFAULT_GAS_MULTIPLIER;
+pub fn consum_set_gas_cost(value_length: u32, write_cost_flat: u64, write_cost_per_byte: u64, gas_mul: u64) -> GasInfo {
+    let mut used_gas = write_cost_flat;
+    used_gas += write_cost_per_byte * (value_length as u64);
+    used_gas *= gas_mul;
 
     GasInfo::with_externally_used(used_gas)
 }
 
 /// consum gas for remove store to chain
-pub fn consum_remove_gas_cost() -> GasInfo {
-    let used_gas = DEFAULT_DELETE_COST;
+pub fn consum_remove_gas_cost(delete_cost: u64, gas_mul: u64) -> GasInfo {
+    let mut used_gas = delete_cost;
+    used_gas *= gas_mul;
     GasInfo::with_externally_used(used_gas)
 }
 
@@ -182,7 +183,10 @@ pub fn do_db_write_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let gas_info = consum_set_gas_cost(value.len() as u32, );
+    let write_cost_flat = data.gas_config_info.write_cost_flat;
+    let write_cost_per_byte = data.gas_config_info.write_cost_per_byte;
+    let gas_mul = data.gas_config_info.gas_mul;
+    let gas_info = consum_set_gas_cost(value.len() as u32, write_cost_flat, write_cost_per_byte, gas_mul);
     data.state_cache.insert(key, CacheStore{
         value,
         gas_info: gas_info,
@@ -224,7 +228,9 @@ pub fn do_db_remove_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let gas_info = consum_remove_gas_cost();
+    let delete_cost = data.gas_config_info.delete_cost;
+    let gas_mul = data.gas_config_info.gas_mul;
+    let gas_info = consum_remove_gas_cost(delete_cost, gas_mul);
     data.state_cache.entry(key).or_insert(CacheStore{
         value: Vec::default(),
         gas_info: gas_info,
