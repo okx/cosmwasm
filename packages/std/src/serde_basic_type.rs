@@ -41,6 +41,7 @@ impl SerializeForBasicType for String {
     }
 }
 
+#[allow(dead_code)]
 pub fn serialize_to_bytes<T: SerializeForBasicType>(value: &T) -> Vec<u8> {
     let mut buf = Vec::new();
     value.serialize(&mut buf);
