@@ -122,12 +122,13 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
                                                                       gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo) {
         let gas_info = GasInfo::new(100, 100);
+        // for test error case
+        if contract_address == String::from("contract_backend_err") {
+            return (Err(VmError::backend_err(BackendError::user_err("test user err"))), gas_info)
+        }
         // check the MessageInfo
         if contract_address != String::from("contract2") {
             return (Err(VmError::generic_err("invalid contract_address")), gas_info)
-        }
-        if contract_address == String::from("contract_backend_err") {
-            return (Err(VmError::backend_err(BackendError::user_err("test user err"))), gas_info)
         }
         if info.sender != Addr::unchecked(String::from("sender1")) {
             return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
