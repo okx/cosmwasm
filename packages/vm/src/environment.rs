@@ -340,12 +340,21 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     let gas_left = env.get_gas_left();
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
+        println!(
+            "--cosmwasm--process_gas_info---gas_left:{},gas_state.externally_used_gas:{},info:{},{}",
+            gas_left, gas_state.externally_used_gas,info.externally_used, info.cost
+        );
         gas_state.externally_used_gas += info.externally_used;
         // These lines reduce the amount of gas available to wasmer
         // so it can not consume gas that was consumed externally.
-        gas_left
+        let temp = gas_left
             .saturating_sub(info.externally_used)
-            .saturating_sub(info.cost)
+            .saturating_sub(info.cost);
+        println!(
+            "--cosmwasm--process_gas_info---after gas_state.externally_used_gas:{}",
+            gas_state.externally_used_gas
+        );
+        temp
     });
 
     // let backtrace = Backtrace::new();

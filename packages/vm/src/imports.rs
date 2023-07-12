@@ -24,6 +24,7 @@ use crate::sections::decode_sections;
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
 use crate::GasInfo;
+use backtrace::Backtrace;
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -125,6 +126,11 @@ pub fn do_addr_validate<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     source_ptr: u32,
 ) -> VmResult<u32> {
+    let backtrace = Backtrace::new();
+    println!("{:?}", backtrace);
+    let gas_left = env.get_gas_left();
+    println!("--cosmwasm--do_addr_validate--start gas left--{}", gas_left);
+
     let source_data = read_region(&env.memory(), source_ptr, MAX_LENGTH_HUMAN_ADDRESS)?;
     if source_data.is_empty() {
         return write_to_contract::<A, S, Q>(env, b"Input is empty");
