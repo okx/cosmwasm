@@ -1,5 +1,6 @@
 //! Internal details to be used by instance.rs only
 use std::borrow::{Borrow, BorrowMut};
+use std::cell::RefCell;
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
 use std::collections::BTreeMap;
@@ -118,7 +119,7 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub print_debug: bool,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
-    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
+    pub state_cache:RefCell<BTreeMap<Vec<u8>, CacheStore>>,
     pub gas_config_info: GasConfigInfo,
 }
 
@@ -152,7 +153,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             print_debug,
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
-            state_cache:BTreeMap::new(),
+            state_cache:RefCell::new(BTreeMap::new()),
             gas_config_info,
         }
     }

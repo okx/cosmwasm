@@ -83,12 +83,13 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
 }
 
 pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
-    env: &mut Environment<A, S, Q>,
+    env: &Environment<A, S, Q>,
     key_ptr: u32,
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let cache = env.state_cache.get(&key);
+    let b = env.state_cache.borrow();
+    let cache = b.get(&key);
     let ret = match cache {
         Some(store_cache) => {
             process_gas_info::<A, S, Q>(env,  store_cache.gas_info)?;
@@ -110,7 +111,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         Some(data) => data,
         None => return Ok(0),
     };
-    env.state_cache.insert(key,CacheStore{
+    env.state_cache.borrow_mut().insert(key,CacheStore{
         value: out_data.clone(),
         gas_info: gas_info,
         key_type: KeyType::Read,
@@ -156,7 +157,7 @@ pub fn consum_remove_gas_cost(delete_cost: u64, gas_mul: u64) -> GasInfo {
 }
 
 pub fn do_db_write_ex<A: BackendApi, S: Storage, Q: Querier>(
-    env: &mut Environment<A, S, Q>,
+    env: &Environment<A, S, Q>,
     key_ptr: u32,
     value_ptr: u32,
 ) -> VmResult<()> {
@@ -168,7 +169,7 @@ pub fn do_db_write_ex<A: BackendApi, S: Storage, Q: Querier>(
     let value = read_region(&env.memory(), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
     let gas_info = consum_set_gas_cost(value.len() as u32, env.gas_config_info.write_cost_flat, env.gas_config_info.write_cost_per_byte, env.gas_config_info.gas_mul);
-    env.state_cache.insert(key, CacheStore{
+    env.state_cache.borrow_mut().insert(key, CacheStore{
         value,
         gas_info,
         key_type: KeyType::Write,
@@ -197,7 +198,7 @@ pub fn do_db_remove<A: BackendApi, S: Storage, Q: Querier>(
 }
 
 pub fn do_db_remove_ex<A: BackendApi, S: Storage, Q: Querier>(
-    env: &mut Environment<A, S, Q>,
+    env: &Environment<A, S, Q>,
     key_ptr: u32,
 ) -> VmResult<()> {
     if env.is_storage_readonly() {
@@ -207,7 +208,7 @@ pub fn do_db_remove_ex<A: BackendApi, S: Storage, Q: Querier>(
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
     let gas_info = consum_remove_gas_cost(env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
-    env.state_cache.entry(key).or_insert(CacheStore{
+    env.state_cache.borrow_mut().entry(key).or_insert(CacheStore{
         value: Vec::default(),
         gas_info,
         key_type: KeyType::Remove,

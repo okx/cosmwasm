@@ -105,10 +105,10 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_read),
         );
 
-        // env_imports.insert(
-        //     "db_read_ex",
-        //     Function::new_native_with_env(store, env.clone(), do_db_read_ex),
-        // );
+        env_imports.insert(
+            "db_read_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_read_ex),
+        );
 
         // Writes the given value into the database entry at the given key.
         // Ownership of both input and output pointer is not transferred to the host.
@@ -117,10 +117,10 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_write),
         );
 
-        // env_imports.insert(
-        //     "db_write_ex",
-        //     Function::new_native_with_env(store, env.clone(), do_db_write_ex),
-        // );
+        env_imports.insert(
+            "db_write_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_write_ex),
+        );
 
         // Removes the value at the given key. Different than writing &[] as future
         // scans will not find this key.
@@ -131,10 +131,10 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_remove),
         );
 
-        // env_imports.insert(
-        //     "db_remove_ex",
-        //     Function::new_native_with_env(store, env.clone(), do_db_remove_ex),
-        // );
+        env_imports.insert(
+            "db_remove_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_remove_ex),
+        );
 
         // Reads human address from source_ptr and checks if it is valid.
         // Returns 0 on if the input is valid. Returns a non-zero memory location to a Region containing an UTF-8 encoded error string for invalid inputs.
@@ -272,7 +272,8 @@ where
     }
 
     pub fn commit_store(&mut self) -> VmResult<()> {
-        for (key,cache_store) in &self.env.state_cache {
+        let binding = self.env.state_cache.borrow();
+        for (key,cache_store) in binding.iter() {
             match cache_store.key_type {
                 KeyType::Write => {
                     let (result, _) = self.env.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value)))?;
@@ -285,7 +286,7 @@ where
                 _ => ()
             }
         }
-        self.env.state_cache.clear();
+        self.env.state_cache.borrow_mut().clear();
         Ok(())
     }
 
