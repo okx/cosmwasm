@@ -136,6 +136,10 @@ pub fn do_addr_validate<A: BackendApi, S: Storage, Q: Querier>(
     };
 
     let (result, gas_info) = env.api.canonical_address(&source_string);
+    println!(
+        "--cosmwasm--do_addr_validate--canonical_address--{},{}",
+        gas_info.cost, gas_info.externally_used
+    );
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let canonical = match result {
         Ok(data) => data,
@@ -146,6 +150,10 @@ pub fn do_addr_validate<A: BackendApi, S: Storage, Q: Querier>(
     };
 
     let (result, gas_info) = env.api.human_address(&canonical);
+    println!(
+        "--cosmwasm--do_addr_validate--human_address--{},{}",
+        gas_info.cost, gas_info.externally_used
+    );
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let normalized = match result {
         Ok(addr) => addr,
