@@ -19,6 +19,7 @@ use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
 use crate::size::Size;
 use crate::wasm_backend::compile;
+use backtrace::Backtrace;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GasReport {
@@ -246,6 +247,8 @@ where
             _inner: wasmer_instance,
             env,
         };
+        let backtrace = Backtrace::new();
+        println!("{:?}", backtrace);
         Ok(instance)
     }
 
