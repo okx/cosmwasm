@@ -99,6 +99,7 @@ impl FunctionMiddleware for FunctionGatekeeper {
         match operator {
             Operator::Unreachable
             | Operator::Nop
+            | Operator::Unwind
             | Operator::Block { .. }
             | Operator::Loop { .. }
             | Operator::If { .. }
@@ -485,16 +486,7 @@ impl FunctionMiddleware for FunctionGatekeeper {
             | Operator::F64x2ConvertLowI32x4S
             | Operator::F64x2ConvertLowI32x4U
             | Operator::F32x4DemoteF64x2Zero
-            | Operator::F64x2PromoteLowF32x4
-            | Operator::I8x16RelaxedSwizzle
-            | Operator::I32x4RelaxedTruncSatF32x4S
-            | Operator::I32x4RelaxedTruncSatF32x4U
-            | Operator::I32x4RelaxedTruncSatF64x2SZero
-            | Operator::I32x4RelaxedTruncSatF64x2UZero
-            | Operator::I8x16LaneSelect
-            | Operator::I16x8LaneSelect
-            | Operator::I32x4LaneSelect
-            | Operator::I64x2LaneSelect => {
+            | Operator::F64x2PromoteLowF32x4 => {
                 if self.config.allow_feature_simd {
                     state.push_operator(operator);
                     Ok(())
@@ -633,15 +625,7 @@ impl FunctionMiddleware for FunctionGatekeeper {
             | Operator::I32x4TruncSatF32x4S
             | Operator::I32x4TruncSatF32x4U
             | Operator::F32x4ConvertI32x4S
-            | Operator::F32x4ConvertI32x4U
-            | Operator::F32x4RelaxedMin
-            | Operator::F32x4RelaxedMax
-            | Operator::F64x2RelaxedMin
-            | Operator::F64x2RelaxedMax
-            | Operator::F32x4Fma
-            | Operator::F32x4Fms
-            | Operator::F64x2Fma
-            | Operator::F64x2Fms => {
+            | Operator::F32x4ConvertI32x4U => {
                 if self.config.allow_floats {
                     state.push_operator(operator);
                     Ok(())

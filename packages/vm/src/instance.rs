@@ -237,6 +237,7 @@ where
 
         let instance_ptr = NonNull::from(wasmer_instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
+        println!("--cosmwasm--from_module--{}", gas_limit);
         env.set_gas_left(gas_limit);
         env.move_in(backend.storage, backend.querier);
         let instance = Instance {
