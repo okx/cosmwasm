@@ -2,6 +2,7 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
+use std::collections::BTreeMap;
 
 use wasmer::{HostEnvInitError, Instance as WasmerInstance, Memory, Val, WasmerEnv};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
@@ -22,6 +23,25 @@ const MAX_CALL_DEPTH: usize = 2;
 pub enum Never {}
 
 /** gas config data */
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GasConfigInfo {
+    pub write_cost_flat: u64,
+    pub write_cost_per_byte: u64,
+    pub delete_cost:u64,
+    pub gas_mul: u64,
+}
+
+impl Default for GasConfigInfo {
+    fn default() -> Self {
+        GasConfigInfo {
+            write_cost_flat: 2000,
+            write_cost_per_byte: 30,
+            delete_cost: 1000,
+            gas_mul: 38000000,
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct GasConfig {
@@ -79,6 +99,18 @@ impl GasState {
     }
 }
 
+#[derive(Clone)]
+pub enum KeyType {
+    Read, Write, Remove,
+}
+
+#[derive(Clone)]
+pub struct CacheStore{
+    pub value: Vec<u8>,
+    pub gas_info: GasInfo,
+    pub key_type: KeyType,
+}
+
 /// A environment that provides access to the ContextData.
 /// The environment is clonable but clones access the same underlying data.
 pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
@@ -86,6 +118,8 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub print_debug: bool,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
+    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
+    pub gas_config_info: GasConfigInfo,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -99,6 +133,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
+            state_cache: self.state_cache.clone(),
+            gas_config_info: self.gas_config_info.clone(),
         }
     }
 }
@@ -110,12 +146,14 @@ impl<A: BackendApi, S: Storage, Q: Querier> WasmerEnv for Environment<A, S, Q> {
 }
 
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
+    pub fn new(api: A, gas_limit: u64, print_debug: bool, gas_config_info: GasConfigInfo) -> Self {
         Environment {
             api,
             print_debug,
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
+            state_cache:BTreeMap::new(),
+            gas_config_info,
         }
     }
 
@@ -429,7 +467,7 @@ mod tests {
         Environment<MockApi, MockStorage, MockQuerier>,
         Box<WasmerInstance>,
     ) {
-        let env = Environment::new(MockApi::default(), gas_limit, false);
+        let env = Environment::new(MockApi::default(), gas_limit, false, GasConfigInfo::default());
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();

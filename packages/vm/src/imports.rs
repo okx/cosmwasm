@@ -14,7 +14,7 @@ use cosmwasm_std::Order;
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{process_gas_info, Environment};
+use crate::environment::{process_gas_info, Environment, CacheStore, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 #[cfg(feature = "iterator")]
 use crate::memory::maybe_read_region;
@@ -57,6 +57,12 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+/// default gas cost for write
+const DEFAULT_WRITE_COST_FLAT: u64    = 2000;
+const DEFAULT_WRITE_COST_PER_BYTE: u64 = 30;
+const DEFAULT_DELETE_COST: u64 = 1000;
+const DEFAULT_GAS_MULTIPLIER: u64 = 38000000;
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -82,6 +88,42 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
     write_to_contract::<A, S, Q>(env, &out_data)
 }
 
+pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
+    env: &mut Environment<A, S, Q>,
+    key_ptr: u32,
+) -> VmResult<u32> {
+    let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+
+    let cache = env.state_cache.get(&key);
+    let ret = match cache {
+        Some(store_cache) => {
+            process_gas_info::<A, S, Q>(env,  store_cache.gas_info)?;
+            write_to_contract::<A, S, Q>(env, &store_cache.value)
+        }
+        None => {
+            Ok(0)
+        }
+    }.expect("Oh, some thing wrong with hash map");
+    if ret > 0 {
+        return Ok(ret);
+    }
+
+    let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+    let value = result?;
+
+    let out_data = match value {
+        Some(data) => data,
+        None => return Ok(0),
+    };
+    env.state_cache.insert(key,CacheStore{
+        value: out_data.clone(),
+        gas_info: gas_info,
+        key_type: KeyType::Read,
+    });
+    write_to_contract::<A, S, Q>(env, &out_data)
+}
+
 /// Writes a storage entry from Wasm memory into the VM's storage
 pub fn do_db_write<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
@@ -103,6 +145,44 @@ pub fn do_db_write<A: BackendApi, S: Storage, Q: Querier>(
     Ok(())
 }
 
+/// consum gas for set store to chain
+pub fn consum_set_gas_cost(value_length: u32) -> GasInfo {
+    let mut used_gas = DEFAULT_WRITE_COST_FLAT;
+    used_gas += DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
+    used_gas *= DEFAULT_GAS_MULTIPLIER;
+
+    GasInfo::with_externally_used(used_gas)
+}
+
+/// consum gas for remove store to chain
+pub fn consum_remove_gas_cost() -> GasInfo {
+    let used_gas = DEFAULT_DELETE_COST;
+    GasInfo::with_externally_used(used_gas)
+}
+
+pub fn do_db_write_ex<A: BackendApi, S: Storage, Q: Querier>(
+    env: &mut Environment<A, S, Q>,
+    key_ptr: u32,
+    value_ptr: u32,
+) -> VmResult<()> {
+    if env.is_storage_readonly() {
+        return Err(VmError::write_access_denied());
+    }
+
+    let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+    let value = read_region(&env.memory(), value_ptr, MAX_LENGTH_DB_VALUE)?;
+
+    let gas_info = consum_set_gas_cost(value.len() as u32);
+    env.state_cache.insert(key, CacheStore{
+        value,
+        gas_info,
+        key_type: KeyType::Write,
+    });
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+
+    Ok(())
+}
+
 pub fn do_db_remove<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     key_ptr: u32,
@@ -117,6 +197,27 @@ pub fn do_db_remove<A: BackendApi, S: Storage, Q: Querier>(
         env.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
     process_gas_info(env, gas_info)?;
     result?;
+
+    Ok(())
+}
+
+pub fn do_db_remove_ex<A: BackendApi, S: Storage, Q: Querier>(
+    env: &mut Environment<A, S, Q>,
+    key_ptr: u32,
+) -> VmResult<()> {
+    if env.is_storage_readonly() {
+        return Err(VmError::write_access_denied());
+    }
+
+    let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+
+    let gas_info = consum_remove_gas_cost();
+    env.state_cache.entry(key).or_insert(CacheStore{
+        value: Vec::default(),
+        gas_info,
+        key_type: KeyType::Remove,
+    });
+    process_gas_info(env, gas_info)?;
 
     Ok(())
 }
