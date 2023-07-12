@@ -18,6 +18,7 @@ use crate::{
     memory::get_optional_region_address,
 };
 pub use crate::binary::Binary;
+pub use crate::types::ContractCreate;
 
 /// An upper bound for typical canonical address lengths (e.g. 20 in Cosmos SDK/Ethereum or 32 in Nano/Substrate)
 const CANONICAL_ADDRESS_BUFFER_LENGTH: usize = 64;
@@ -368,7 +369,6 @@ impl Api for ExternalApi {
         unsafe { debug(region_ptr) };
     }
 
-
     fn new_contract(
         &self,
         creator_addr: String,
@@ -410,18 +410,6 @@ impl Api for ExternalApi {
         let address = unsafe { consume_string_region_written_by_vm(addr) };
         Ok(Addr::unchecked(address))
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq, JsonSchema)]
-pub struct ContractCreate {
-    pub creator: String,
-    pub wasm_code: Binary,
-    pub code_id: u64,
-    pub init_msg: Binary,
-    pub admin_addr: String,
-    pub label: String,
-    pub is_create2: bool,
-    pub salt: Binary,
 }
 
 /// Takes a pointer to a Region and reads the data into a String.

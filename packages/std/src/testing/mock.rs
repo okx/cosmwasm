@@ -231,13 +231,48 @@ impl Api for MockApi {
 
     fn new_contract(
         &self,
-        _creator_addr: String,
-        _code: Binary,
-        _msg: Binary,
-        _admin: String,
-        _label:  String,
+        creator_addr: String,
+        code: Binary,
+        code_id: u64,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        is_create2: bool,
+        salt: Binary,
     ) -> StdResult<Addr>{
-        todo!()
+        let addr_min_length = 5;
+        let addr_max_length = 20;
+        let code_max_length = 200;
+
+        if creator_addr.len() < addr_min_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: creator address too short for this mock implementation (must be >= {addr_min_length})."),
+            ));
+        }
+        if creator_addr.len() > addr_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: creator address too long for this mock implementation (must be <= {addr_max_length})."),
+            ));
+        }
+
+        if admin.len() < addr_min_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: admin address too short for this mock implementation (must be >= {addr_min_length})."),
+            ));
+        }
+        if admin.len() > addr_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: admin address too long for this mock implementation (must be <= {addr_max_length})."),
+            ));
+        }
+
+        if code.len() > code_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: code too long for this mock implementation (must be <= {code_max_length})."),
+            ));
+        }
+
+        Ok(Addr::unchecked(MOCK_CONTRACT_ADDR))
     }
 }
 
@@ -1160,6 +1195,102 @@ mod tests {
 
         let res = api.ed25519_batch_verify(&msgs, &signatures, &public_keys);
         assert_eq!(res.unwrap_err(), VerificationError::InvalidPubkeyFormat);
+    }
+
+    // Basic "works" test.
+    #[test]
+    fn new_contract_works(){
+        let api = MockApi::default();
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let addr = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap();
+        assert_eq!(addr, MOCK_CONTRACT_ADDR);
+    }
+
+    #[test]
+    fn new_contract_input_length() {
+        let api = MockApi::default();
+
+        let creator_addr = "ADDR".to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("creator address too short for this mock implementation (must be >= 5)"));
+
+
+        let creator_addr = "ADDR_ADDR_ADDR_ADDR_ADDR".to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("creator address too long for this mock implementation (must be <= 20)"));
+
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  "ADDR".to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("admin address too short for this mock implementation (must be >= 5)"));
+
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  "ADDR_ADDR_ADDR_ADDR_ADDR".to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("admin address too long for this mock implementation (must be <= 20)"));
+
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::from_base64("SGVsbG8sIFdvcmxkISBUaGlzIGlzIGEgYmFzZTY0IGVuY29kaW5nIHN0cmluZy4gVGhpcyBlbmNvZGluZyBoZWxwcyB0byBlbmNvZGluZyBkYXRhIGluIEJhc2U2NCBlbmNvZGluZyB0aGF0IG1lZGl1bSBpcyBhIG51bWJlciBvZiBkYXRhLCBlc3BlY2lhbGx5IGluIFB5dGhvbiB0aGF0IG1vZGlmaWNhdGlvbiBkYXRhIGluIFhNTCBvciBPYmplY3QgSGFzaC4=").unwrap();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("code too long for this mock implementation (must be <= 200)"));
     }
 
     #[cfg(feature = "cosmwasm_1_1")]

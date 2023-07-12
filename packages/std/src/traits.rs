@@ -146,9 +146,12 @@ pub trait Api {
         &self,
         creator_addr: String,
         code: Binary,
+        code_id: u64,
         msg: Binary,
         admin: String,
         label:  String,
+        is_create2: bool,
+        salt: Binary,
     ) -> StdResult<Addr>;
 }
 
