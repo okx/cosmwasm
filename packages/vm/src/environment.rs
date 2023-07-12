@@ -1,4 +1,5 @@
 //! Internal details to be used by instance.rs only
+use backtrace::Backtrace;
 use std::borrow::{Borrow, BorrowMut};
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
@@ -246,6 +247,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     }
 
     pub fn set_gas_left(&self, new_value: u64) {
+        println!("--cosmwasm--set_gas_left--{}", new_value);
         self.with_wasmer_instance(|instance| {
             set_remaining_points(instance, new_value);
             Ok(())
@@ -346,7 +348,10 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
             .saturating_sub(info.cost)
     });
 
+    // let backtrace = Backtrace::new();
+    // println!("{:?}", backtrace);
     // This tells wasmer how much more gas it can consume from this point in time.
+    println!("--cosmwasm--process_gas_info--{}", new_limit);
     env.set_gas_left(new_limit);
 
     if info.externally_used + info.cost > gas_left {
@@ -417,6 +422,7 @@ mod tests {
 
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
+        println!("--cosmwasm--make_instance--{}", gas_limit);
         env.set_gas_left(gas_limit);
 
         (env, instance)
