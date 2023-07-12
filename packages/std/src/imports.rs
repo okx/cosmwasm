@@ -373,56 +373,21 @@ impl Api for ExternalApi {
         &self,
         creator_addr: String,
         code: Binary,
+        code_id: u64,
         msg: Binary,
         admin: String,
         label:  String,
-    ) -> StdResult<Addr>{
-        let request = ContractCreate {
-            creator: creator_addr,
-            wasm_code: code,
-            init_msg: msg,
-            admin_addr: admin,
-            label,
-            is_create2: false,
-            salt: Binary::default(),
-        };
-
-        let raw = to_vec(&request).map_err(|serialize_err| {
-            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
-        })?;
-        let req = build_region(&raw);
-        let request_ptr = &*req as *const Region as u32;
-        let addr = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
-
-        let result = unsafe { new_contract(request_ptr, addr as u32) };
-        if result != 0 {
-            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
-            return Err(StdError::generic_err(format!(
-                "new contract errored: {}",
-                error
-            )));
-        }
-
-        let address = unsafe { consume_string_region_written_by_vm(addr) };
-        Ok(Addr::unchecked(address))
-    }
-
-    fn new_contract2(
-        &self,
-        creator_addr: String,
-        code: Binary,
-        msg: Binary,
-        admin: String,
-        label:  String,
+        is_create2: bool,
         salt: Binary,
     ) -> StdResult<Addr>{
         let request = ContractCreate {
             creator: creator_addr,
             wasm_code: code,
+            code_id,
             init_msg: msg,
             admin_addr: admin,
             label,
-            is_create2: true,
+            is_create2,
             salt,
         };
 
@@ -451,6 +416,7 @@ impl Api for ExternalApi {
 pub struct ContractCreate {
     pub creator: String,
     pub wasm_code: Binary,
+    pub code_id: u64,
     pub init_msg: Binary,
     pub admin_addr: String,
     pub label: String,

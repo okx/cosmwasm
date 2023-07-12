@@ -239,18 +239,6 @@ impl Api for MockApi {
     ) -> StdResult<Addr>{
         todo!()
     }
-
-    fn new_contract2(
-        &self,
-        _creator_addr: String,
-        _code: Binary,
-        _msg: Binary,
-        _admin: String,
-        _label:  String,
-        _salt: Binary,
-    ) -> StdResult<Addr>{
-        todo!()
-    }
 }
 
 /// Returns a default enviroment with height, time, chain_id, and contract address

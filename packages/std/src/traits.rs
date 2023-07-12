@@ -150,16 +150,6 @@ pub trait Api {
         admin: String,
         label:  String,
     ) -> StdResult<Addr>;
-
-    fn new_contract2(
-        &self,
-        creator_addr: String,
-        code: Binary,
-        msg: Binary,
-        admin: String,
-        label:  String,
-        salt: Binary,
-    ) -> StdResult<Addr>;
 }
 
 /// A short-hand alias for the two-level query result (1. accessing the contract, 2. executing query in the contract)
