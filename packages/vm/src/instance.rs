@@ -240,6 +240,8 @@ where
         println!("--cosmwasm--from_module--{}", gas_limit);
         env.set_gas_left(gas_limit);
         env.move_in(backend.storage, backend.querier);
+        let gas_left = env.get_gas_left();
+        println!("--cosmwasm--from_module--end gas left--{}", gas_left);
         let instance = Instance {
             _inner: wasmer_instance,
             env,
