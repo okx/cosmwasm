@@ -104,7 +104,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let ret = match cache {
         Some(store_cache) => {
             process_gas_info::<A, S, Q>(data, &mut store, store_cache.gas_info)?;
-            write_to_contract::<A, S, Q>(data, &mut store, &store_cache.value)
+            write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value, _value_ptr)
         }
         None => Ok(0),
     }
@@ -129,7 +129,25 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
             key_type: KeyType::Read,
         },
     );
-    write_to_contract(data, &mut store, &out_data)
+    write_to_contract_ex(data, &mut store, &out_data, _value_ptr)
+}
+
+fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+ 'static>(
+    data: &Environment<A, S, Q>,
+    store: &mut impl AsStoreMut,
+    input: &[u8],
+    output:u32,
+) -> VmResult<u32> {
+    let ret = write_region(&data.memory(store), output, input);
+
+    return match ret {
+        Ok(_) => {
+            Ok(output)
+        }
+        _ => {
+            write_to_contract(data, store, input)
+        }
+    };
 }
 
 /// Writes a storage entry from Wasm memory into the VM's storage
