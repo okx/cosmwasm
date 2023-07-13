@@ -599,6 +599,7 @@ mod tests {
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
     static CYBERPUNK: &[u8] = include_bytes!("../testdata/cyberpunk.wasm");
+    static Counter: &[u8] = include_bytes!("../testdata/counter.wasm");
     static COUNTER_TEST_DB_READ_EX: &[u8] = include_bytes!("../testdata/ex_test/1000u128.wasm");
     static COUNTER_TEST_DB_READ_EX_LIMIT: &[u8] =
         include_bytes!("../testdata/ex_test/1000000000000000000000000000000u128.wasm");
@@ -670,6 +671,25 @@ mod tests {
             "1000000000000000000000000000000"
         )
         // len=33 [34, 49, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 34]
+    }
+
+    #[test]
+    fn call_execute_read_worksPerf() {
+        let mut instance = mock_instance(Counter, &[]);
+
+        // init
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let msg = br#"{}"#;
+        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
+
+        // execute
+        let info = mock_info("verifies", &coins(15, "earth"));
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"10000000"}}"#;
+        let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
+            .unwrap()
+            .unwrap();
     }
 
     #[test]
