@@ -185,7 +185,7 @@ pub fn do_db_write_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier 
         key_type: KeyType::Write,
         is_dirty: true,
     });
-    process_gas_info(data, &mut store, gas_info)?;
+    // process_gas_info(data, &mut store, gas_info)?;
 
     Ok(())
 }
