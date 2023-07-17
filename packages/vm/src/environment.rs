@@ -140,8 +140,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
     fn clone(&self) -> Self {
         Environment {
             memory: None,
-            global_remaining_points:None,
-            global_points_exhausted:None,
+            global_remaining_points:self.global_remaining_points.clone(),
+            global_points_exhausted:self.global_points_exhausted.clone(),
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
