@@ -4,9 +4,10 @@ use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use std::collections::BTreeMap;
 
 use derivative::Derivative;
-use wasmer::{AsStoreMut, Instance as WasmerInstance, Memory, MemoryView, Value};
+use wasmer::{AsStoreMut, Global, Instance as WasmerInstance, Memory, MemoryView, Value};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
@@ -106,13 +107,29 @@ pub struct DebugInfo<'a> {
 //                            v                                          v
 pub type DebugHandlerFn = dyn for<'a> Fn(/* msg */ &'a str, DebugInfo<'a>);
 
+#[derive(Clone)]
+pub enum KeyType {
+    Read, Write, Remove,
+}
+
+#[derive(Clone)]
+pub struct CacheStore{
+    pub value: Vec<u8>,
+    pub gasInfo : GasInfo,
+    pub key_type: KeyType,
+    pub is_dirty: bool,
+}
+
 /// A environment that provides access to the ContextData.
 /// The environment is clonable but clones access the same underlying data.
 pub struct Environment<A, S, Q> {
     pub memory: Option<Memory>,
+    pub global_remaining_points:Option<Global>,
+    pub global_points_exhausted:Option<Global>,
     pub api: A,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
+    pub state_cache:BTreeMap<Vec<u8>, CacheStore>,
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -123,9 +140,12 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
     fn clone(&self) -> Self {
         Environment {
             memory: None,
+            global_remaining_points:None,
+            global_points_exhausted:None,
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
+            state_cache: BTreeMap::new(),
         }
     }
 }
@@ -134,9 +154,12 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     pub fn new(api: A, gas_limit: u64) -> Self {
         Environment {
             memory: None,
+            global_remaining_points:None,
+            global_points_exhausted:None,
             api,
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
+            state_cache:BTreeMap::new(),
         }
     }
 
@@ -146,6 +169,10 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         })
     }
 
+    pub fn set_global(&mut self, a:Global,b:Global){
+        self.global_remaining_points=Some(a);
+        self.global_points_exhausted=Some(b)
+    }
     pub fn debug_handler(&self) -> Option<Rc<DebugHandlerFn>> {
         self.with_context_data(|context_data| {
             // This clone here requires us to wrap the function in Rc instead of Box
@@ -321,6 +348,14 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         })
     }
 
+    pub fn get_gas_left_ex(&self,remain:&Global,exhausted:&Global,store: &mut impl AsStoreMut)->u64{
+        match exhausted.get(store) {
+            value if value.unwrap_i32() > 0 => 0,
+            _ => u64::try_from(remain.get(store)).unwrap(),
+        }
+    }
+
+
     pub fn get_gas_left(&self, store: &mut impl AsStoreMut) -> u64 {
         self.with_wasmer_instance(|instance| {
             Ok(match get_remaining_points(store, instance) {
@@ -331,6 +366,10 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
+    pub fn set_gas_left_ex(&self, a : &Global, store: &mut impl AsStoreMut, new_limit:u64){
+       a.set(store, new_limit.into())
+            .expect("Can't set `wasmer_metering_remaining_points` in Instance");
+    }
     pub fn set_gas_left(&self, store: &mut impl AsStoreMut, new_value: u64) {
         self.with_wasmer_instance(|instance| {
             set_remaining_points(store, instance, new_value);
@@ -416,8 +455,10 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     store: &mut impl AsStoreMut,
     info: GasInfo,
 ) -> VmResult<()> {
-    let gas_left = env.get_gas_left(store);
+    let remain_points=env.global_remaining_points.as_ref().unwrap();
+    let exhausted_points=env.global_points_exhausted.as_ref().unwrap();
 
+    let gas_left= env.get_gas_left_ex(remain_points,exhausted_points,store);
     let new_limit = env.with_gas_state_mut(|gas_state| {
         gas_state.externally_used_gas += info.externally_used;
         // These lines reduce the amount of gas available to wasmer
@@ -428,7 +469,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     });
 
     // This tells wasmer how much more gas it can consume from this point in time.
-    env.set_gas_left(store, new_limit);
+    env.set_gas_left_ex(remain_points,store,new_limit);
 
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())
