@@ -381,10 +381,10 @@ impl Api for ExternalApi {
         salt: Binary,
     ) -> StdResult<Addr>{
         if code.len()==0 && code_id==0{
-            return Err(StdError::generic_err("Need byte code or code id"));
+            return Err(StdError::generic_err("Invalid byte code and code id"));
         }
         if is_create2 && (salt.is_empty() || salt.len() > 64) {
-            return Err(Instantiate2AddressError::InvalidSaltLength);
+            return Err(StdError::generic_err("Invalid salt length(<=64)"));
         };
 
         let request = ContractCreate {
