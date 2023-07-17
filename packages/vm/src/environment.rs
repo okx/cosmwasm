@@ -145,7 +145,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
-            state_cache: BTreeMap::new(),
+            state_cache: self.state_cache.clone(),
         }
     }
 }
