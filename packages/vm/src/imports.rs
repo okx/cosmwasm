@@ -180,7 +180,7 @@ pub fn do_db_write_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier 
 
     let gas_info = consum_set_gas_cost(value.len() as u32, );
     data.state_cache.insert(key, CacheStore{
-        value: value.clone(),
+        value: value,
         gasInfo: gas_info,
         key_type: KeyType::Write,
         is_dirty: true,
