@@ -2,7 +2,7 @@ use std::vec::Vec;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::addresses::{Addr, CanonicalAddr};
+use crate::addresses::{Addr, CanonicalAddr, Instantiate2AddressError};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, SystemError, VerificationError};
 use crate::import_helpers::{from_high_half, from_low_half};
 use crate::memory::{alloc, build_region, consume_region, Region};
@@ -380,6 +380,13 @@ impl Api for ExternalApi {
         is_create2: bool,
         salt: Binary,
     ) -> StdResult<Addr>{
+        if code.len()==0 && code_id==0{
+            return Err(StdError::generic_err("Need byte code or code id"));
+        }
+        if is_create2 && (salt.is_empty() || salt.len() > 64) {
+            return Err(Instantiate2AddressError::InvalidSaltLength);
+        };
+
         let request = ContractCreate {
             creator: creator_addr,
             wasm_code: code,
