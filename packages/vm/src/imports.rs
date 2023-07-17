@@ -153,6 +153,23 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
     value_ptr: u32,
 ) -> VmResult<()> {
     let (data, mut store) = env.data_and_store_mut();
+    if data.is_storage_readonly() {
+        return Err(VmError::write_access_denied());
+    }
+    let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
+    let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
+    let (result, gas_info) =
+        data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &value)))?;
+    process_gas_info(data, &mut store, gas_info)?;
+    result?;
+    Ok(())
+}
+pub fn do_db_write_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    key_ptr: u32,
+    value_ptr: u32,
+) -> VmResult<()> {
+    let (data, mut store) = env.data_and_store_mut();
 
     if data.is_storage_readonly() {
         return Err(VmError::write_access_denied());
@@ -174,6 +191,22 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
 }
 
 pub fn do_db_remove<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    key_ptr: u32,
+) -> VmResult<()> {
+    let (data, mut store) = env.data_and_store_mut();
+    if data.is_storage_readonly() {
+        return Err(VmError::write_access_denied());
+    }
+    let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
+    let (result, gas_info) =
+        data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
+    process_gas_info(data, &mut store, gas_info)?;
+    result?;
+    Ok(())
+}
+
+pub fn do_db_remove_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
     mut env: FunctionEnvMut<Environment<A, S, Q>>,
     key_ptr: u32,
 ) -> VmResult<()> {

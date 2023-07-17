@@ -12,11 +12,7 @@ use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
 use crate::environment::{Environment, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
-use crate::imports::{
-    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex, do_db_remove,
-    do_db_write, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
-    do_secp256k1_recover_pubkey, do_secp256k1_verify,
-};
+use crate::imports::{do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex, do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify};
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
@@ -127,6 +123,11 @@ where
             Function::new_typed_with_env(&mut store, &fe, do_db_write),
         );
 
+        env_imports.insert(
+            "db_write_ex",
+            Function::new_typed_with_env(&mut store, &fe, do_db_write_ex),
+        );
+
         // Removes the value at the given key. Different than writing &[] as future
         // scans will not find this key.
         // At the moment it is not possible to differentiate between a key that existed before and one that did not exist (https://github.com/CosmWasm/cosmwasm/issues/290).
@@ -134,6 +135,11 @@ where
         env_imports.insert(
             "db_remove",
             Function::new_typed_with_env(&mut store, &fe, do_db_remove),
+        );
+
+        env_imports.insert(
+            "db_remove_ex",
+            Function::new_typed_with_env(&mut store, &fe, do_db_remove_ex),
         );
 
         // Reads human address from source_ptr and checks if it is valid.
