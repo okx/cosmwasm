@@ -569,20 +569,20 @@ pub fn do_debug<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'sta
     mut env: FunctionEnvMut<Environment<A, S, Q>>,
     message_ptr: u32,
 ) -> VmResult<()> {
-    let (data, mut store) = env.data_and_store_mut();
-
-    if let Some(debug_handler) = data.debug_handler() {
-        let message_data = read_region(&data.memory(&mut store), message_ptr, MAX_LENGTH_DEBUG)?;
-        let msg = String::from_utf8_lossy(&message_data);
-        let gas_remaining = data.get_gas_left(&mut store);
-        (*debug_handler)(
-            &msg,
-            DebugInfo {
-                gas_remaining,
-                __lifetime: PhantomData::default(),
-            },
-        );
-    }
+    // let (data, mut store) = env.data_and_store_mut();
+    //
+    // if let Some(debug_handler) = data.debug_handler() {
+    //     let message_data = read_region(&data.memory(&mut store), message_ptr, MAX_LENGTH_DEBUG)?;
+    //     let msg = String::from_utf8_lossy(&message_data);
+    //     let gas_remaining = data.get_gas_left(&mut store);
+    //     (*debug_handler)(
+    //         &msg,
+    //         DebugInfo {
+    //             gas_remaining,
+    //             __lifetime: PhantomData::default(),
+    //         },
+    //     );
+    // }
     Ok(())
 }
 
