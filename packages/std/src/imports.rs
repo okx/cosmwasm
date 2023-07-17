@@ -384,7 +384,7 @@ impl Api for ExternalApi {
             return Err(StdError::generic_err("Invalid byte code and code id"));
         }
         if is_create2 && (salt.is_empty() || salt.len() > 64) {
-            return Err(StdError::generic_err("Invalid salt length(<=64)"));
+            return Err(StdError::generic_err("Invalid salt length"));
         };
 
         let request = ContractCreate {
