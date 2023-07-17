@@ -296,22 +296,27 @@ where
         &self.fe.as_ref(&self.store).api
     }
 
-    pub fn commit_store(&mut self) {
+    pub fn commit_store(&mut self) ->VmResult<()>{
         let mut env = self.fe.clone().into_mut(&mut self.store);
         let (data, _) = env.data_and_store_mut();
-        for (key,cache_store) in data.state_cache.clone() {
+        for (key, cache_store) in &data.state_cache {
             match cache_store.key_type {
                 KeyType::Write => {
-                    data.with_storage_from_context::<_, _>(|store| Ok(store.set(&key, &cache_store.value))).expect("failed commit_store for set");
+                    let (result, _) = data.with_storage_from_context::<_, _>(|store| {
+                        Ok(store.set(key, &cache_store.value))
+                    })?;
+                    result?;
                 }
                 KeyType::Remove => {
-                    data.with_storage_from_context::<_, _>(|store| Ok(store.remove(&key))).expect("failed commit_store for remove");
+                    let (result, _) =
+                        data.with_storage_from_context::<_, _>(|store| Ok(store.remove(key)))?;
+                    result?;
                 }
-                _ => ()
+                _ => (),
             }
-
-            data.state_cache.remove(&key);
         }
+        data.state_cache.clear();
+        Ok(())
     }
 
     /// Decomposes this instance into its components.
