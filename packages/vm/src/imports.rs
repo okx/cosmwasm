@@ -524,7 +524,7 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
     let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
 
-    let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
+    let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
 
     let call_msg: Binary;
