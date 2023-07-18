@@ -64,6 +64,7 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
         memory_limit: Option<Size>,
+        block_heigh: u64,
     ) -> VmResult<Self> {
         let module = compile(code, memory_limit, &[])?;
         Instance::from_module(
@@ -73,6 +74,7 @@ where
             options.print_debug,
             None,
             None,
+            block_heigh,
         )
     }
 
@@ -83,10 +85,11 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
+        block_heigh: u64,
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(backend.api, gas_limit, print_debug);
+        let env = Environment::new(backend.api, gas_limit, print_debug, 0);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -379,13 +382,22 @@ pub fn instance_from_module<A, S, Q>(
     gas_limit: u64,
     print_debug: bool,
     extra_imports: Option<HashMap<&str, Exports>>,
+    block_heigh: u64,
 ) -> VmResult<Instance<A, S, Q>>
 where
     A: BackendApi + 'static, // 'static is needed here to allow copying API instances into closures
     S: Storage + 'static, // 'static is needed here to allow using this in an Environment that is cloned into closures
     Q: Querier + 'static,
 {
-    Instance::from_module(module, backend, gas_limit, print_debug, extra_imports, None)
+    Instance::from_module(
+        module,
+        backend,
+        gas_limit,
+        print_debug,
+        extra_imports,
+        None,
+        block_heigh,
+    )
 }
 
 #[cfg(test)]
@@ -417,7 +429,7 @@ mod tests {
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
         let instance =
-            Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+            Instance::from_code(CONTRACT, backend, instance_options, memory_limit, 0).unwrap();
         assert_eq!(instance.required_capabilities().len(), 0);
     }
 
@@ -439,7 +451,8 @@ mod tests {
 
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance = Instance::from_code(&wasm, backend, instance_options, memory_limit).unwrap();
+        let instance =
+            Instance::from_code(&wasm, backend, instance_options, memory_limit, 0).unwrap();
         assert_eq!(instance.required_capabilities().len(), 3);
         assert!(instance.required_capabilities().contains("nutrients"));
         assert!(instance.required_capabilities().contains("sun"));
@@ -485,6 +498,7 @@ mod tests {
             false,
             Some(extra_imports),
             None,
+            0,
         )
         .unwrap();
 
