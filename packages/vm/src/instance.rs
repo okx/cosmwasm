@@ -107,7 +107,13 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(backend.api, gas_limit, print_debug, 0);
+        let env = Environment::new(
+            backend.api,
+            gas_limit,
+            print_debug,
+            block_heigh,
+            block_milestone.clone(),
+        );
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();

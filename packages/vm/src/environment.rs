@@ -1,5 +1,6 @@
 //! Internal details to be used by instance.rs only
 use std::borrow::{Borrow, BorrowMut};
+use std::collections::HashMap;
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
 
@@ -86,6 +87,7 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub print_debug: bool,
     pub gas_config: GasConfig,
     pub block_heigh: u64,
+    pub block_milestone: HashMap<String, u64>,
     data: Arc<RwLock<ContextData<S, Q>>>,
 }
 
@@ -100,6 +102,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
             block_heigh: self.block_heigh,
+            block_milestone: self.block_milestone.clone(),
             data: self.data.clone(),
         }
     }
@@ -112,12 +115,19 @@ impl<A: BackendApi, S: Storage, Q: Querier> WasmerEnv for Environment<A, S, Q> {
 }
 
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64, print_debug: bool, block_heigh: u64) -> Self {
+    pub fn new(
+        api: A,
+        gas_limit: u64,
+        print_debug: bool,
+        block_heigh: u64,
+        block_milestone: HashMap<String, u64>,
+    ) -> Self {
         Environment {
             api,
             print_debug,
             gas_config: GasConfig::default(),
             block_heigh,
+            block_milestone,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
         }
     }

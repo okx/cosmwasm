@@ -1,13 +1,13 @@
 //! Import implementations
 
-use std::cmp::max;
-
 use cosmwasm_crypto::{
     ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
 };
 use cosmwasm_crypto::{
     ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, MESSAGE_HASH_MAX_LEN,
 };
+use std::cmp::max;
+use std::collections::HashMap;
 
 #[cfg(feature = "iterator")]
 use cosmwasm_std::Order;
@@ -65,12 +65,33 @@ const MAX_LENGTH_ABORT: usize = 2 * MI;
 // argument and cannot capture other variables. Thus everything is accessed
 // through the env.
 
+pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_heigh: u64) -> bool {
+    println!(
+        "do_db_read block_milestone:{},block_heigh{}",
+        block_milestone.len(),
+        block_heigh
+    );
+    if let Some(value) = block_milestone.get("v2") {
+        if block_heigh >= *value {
+            println!("higher_than_v2:{},{}", block_heigh, value);
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Reads a storage entry from the VM's storage into Wasm memory
 pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     key_ptr: u32,
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+
+    // println!("--do_db_read----test--");
+
+    if higher_than_v2(env.block_milestone.clone(), env.block_heigh) {
+        println!("--do_db_read--higher than v2");
+    }
 
     let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
     process_gas_info::<A, S, Q>(env, gas_info)?;
