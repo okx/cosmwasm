@@ -299,6 +299,7 @@ where
             None,
             Some(&self.instantiation_lock),
             block_heigh,
+            self.block_milestone.clone(),
         )?;
         Ok(instance)
     }
