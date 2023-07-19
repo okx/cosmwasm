@@ -133,7 +133,7 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
         if info.sender != Addr::unchecked(String::from("sender1")) {
             return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
         }
-        if block_env.contract.address != String::from("contract2") {
+        if block_env.contract.address != String::from("contract1") {
             return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
         }
         if gas_info.externally_used > gas_limit {

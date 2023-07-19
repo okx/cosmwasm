@@ -67,7 +67,7 @@ const MAX_LENGTH_CALL_DATA: usize = 64 * KI;
 const MAX_LENGTH_ENV: usize = 64 * KI;
 
 /// max call depth
-const MAX_CALL_DEPTH: u32 = 1024;
+const MAX_CALL_DEPTH: u32 = 20;
 
 // Import implementations
 //
@@ -454,7 +454,7 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
     destination_ptr: u32,
 ) -> VmResult<u32> {
     if env.call_depth + 1 > MAX_CALL_DEPTH {
-        return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
+        return write_to_contract::<A, S, Q>(env, b"more than the max call depth");
     }
 
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
@@ -518,7 +518,7 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     destination_ptr: u32,
 ) -> VmResult<u32> {
     if env.call_depth + 1 > MAX_CALL_DEPTH {
-        return write_to_contract::<A, S, Q>(env, b"more than the max call dept");
+        return write_to_contract::<A, S, Q>(env, b"more than the max call depth");
     }
 
     let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
@@ -2002,7 +2002,7 @@ mod tests {
         assert_ne!(result, 0);
         let result = force_read(&env, result);
         //println!("{:?}", String::from_utf8(result));
-        assert_eq!(result, String::from("more than the max call dept").into_bytes());
+        assert_eq!(result, String::from("more than the max call depth").into_bytes());
 
         // 2. the msg is not WasmMsg::Execute
         env.call_depth = 1;
@@ -2138,7 +2138,7 @@ mod tests {
         assert_ne!(result, 0);
         let result = force_read(&env, result);
         //println!("{:?}", String::from_utf8(result));
-        assert_eq!(result, String::from("more than the max call dept").into_bytes());
+        assert_eq!(result, String::from("more than the max call depth").into_bytes());
 
         // 2. the msg is not WasmMsg::Execute
         env.call_depth = 1;
