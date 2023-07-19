@@ -260,6 +260,52 @@ impl Api for MockApi {
     fn debug(&self, message: &str) {
         println!("{}", message);
     }
+
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        code_id: u64,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        is_create2: bool,
+        salt: Binary,
+    ) -> StdResult<Addr>{
+        let addr_min_length = 5;
+        let addr_max_length = 20;
+        let code_max_length = 200;
+
+        if creator_addr.len() < addr_min_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: creator address too short for this mock implementation (must be >= {addr_min_length})."),
+            ));
+        }
+        if creator_addr.len() > addr_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: creator address too long for this mock implementation (must be <= {addr_max_length})."),
+            ));
+        }
+
+        if admin.len() < addr_min_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: admin address too short for this mock implementation (must be >= {addr_min_length})."),
+            ));
+        }
+        if admin.len() > addr_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: admin address too long for this mock implementation (must be <= {addr_max_length})."),
+            ));
+        }
+
+        if code.len() > code_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: code too long for this mock implementation (must be <= {code_max_length})."),
+            ));
+        }
+
+        Ok(Addr::unchecked(MOCK_CONTRACT_ADDR))
+    }
 }
 
 /// Returns a default enviroment with height, time, chain_id, and contract address

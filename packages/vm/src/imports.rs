@@ -12,7 +12,7 @@ use cosmwasm_crypto::{
 use cosmwasm_std::{Addr, Env};
 
 #[cfg(feature = "iterator")]
-use cosmwasm_std::Order;
+use cosmwasm_std::{Order, ContractCreate};
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
@@ -59,6 +59,9 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
+
+/// Max length for a create contract message
+const MAX_LENGTH_NEW_CONTRACT_REQUEST: usize = 2 * MI;
 
 /// max length call data
 const MAX_LENGTH_CALL_DATA: usize = 64 * KI;
@@ -407,6 +410,36 @@ pub fn do_debug<A: BackendApi, S: Storage, Q: Querier>(
     Ok(())
 }
 
+
+pub fn do_new_contract<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    source_ptr: u32,
+    destination_ptr: u32,
+) -> VmResult<u32> {
+    let source_data = read_region(
+        &env.memory(),
+        source_ptr,
+        MAX_LENGTH_NEW_CONTRACT_REQUEST,
+    )?;
+    if source_data.is_empty() {
+        return write_to_contract::<A, S, Q>(env, b"Input is empty");
+    }
+
+    let gas_remaining = env.get_gas_left();
+    let (result, gas_info) = env.api.new_contract(&source_data, gas_remaining);
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+    match result {
+        Ok(addr) => {
+            write_region(&env.memory(), destination_ptr, addr.as_bytes())?;
+            Ok(0)
+        }
+        Err(BackendError::UserErr { msg, .. }) => {
+            Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        }
+        Err(err) => Err(VmError::from(err)),
+    }
+}
+
 /// Aborts the contract and shows the given error message
 pub fn do_abort<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
@@ -701,6 +734,7 @@ mod tests {
                 "delegate_call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_native(store, |_a: u32| {}),
                 "abort" => Function::new_native(store, |_a: u32| {}),
+                "new_contract" => Function::new_native(store, |_a: u32, _b: u32| -> u32 { 0 }),
             },
         };
         let instance = Box::from(WasmerInstance::new(&module, &import_obj).unwrap());

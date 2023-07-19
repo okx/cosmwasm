@@ -12,7 +12,7 @@ use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_remove,
     do_db_write, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
-    do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call,
+    do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call, do_new_contract,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -181,6 +181,11 @@ where
         env_imports.insert(
             "debug",
             Function::new_native_with_env(store, env.clone(), do_debug),
+        );
+
+        env_imports.insert(
+            "new_contract",
+            Function::new_native_with_env(store, env.clone(), do_new_contract),
         );
 
         // Aborts the contract execution with an error message provided by the contract.
