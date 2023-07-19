@@ -26,7 +26,7 @@ use crate::sections::decode_sections;
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
 use crate::{from_slice, GasInfo};
-use cosmwasm_std::{WasmMsg, MessageInfo, Coin, Binary};
+use cosmwasm_std::{WasmMsg, MessageInfo};
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -463,19 +463,13 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
     let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
 
-    let call_msg: Binary;
-    let contract_address: String;
-    let vcoin: Vec<Coin>;
-    match calld {
-        WasmMsg::Execute { contract_addr, msg, funds} => {
-            call_msg = msg;
-            contract_address = contract_addr;
-            vcoin = funds;
-        }
-        _ => {
+    let (call_msg,contract_address, vcoin) = {
+        if let WasmMsg::Execute { contract_addr, msg, funds} = calld {
+            (msg, contract_addr, funds)
+        } else {
             return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
         }
-    }
+    };
 
     let info = MessageInfo{
         sender: benv.contract.address.clone(), // the do_call function sender is the caller contract address
@@ -527,19 +521,13 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
     let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
     let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
 
-    let call_msg: Binary;
-    let contract_address: String;
-    let vcoin: Vec<Coin>;
-    match calld {
-        WasmMsg::Execute { contract_addr, msg, funds} => {
-            call_msg = msg;
-            contract_address = contract_addr;
-            vcoin = funds;
-        }
-        _ => {
+    let (call_msg,contract_address, vcoin) = {
+        if let WasmMsg::Execute { contract_addr, msg, funds} = calld {
+            (msg, contract_addr, funds)
+        } else {
             return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
         }
-    }
+    };
 
     let info = MessageInfo{
         sender: env.sender_addr.clone(),
