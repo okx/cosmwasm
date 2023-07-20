@@ -85,7 +85,7 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(backend.api, gas_limit, print_debug);
+        let mut env = Environment::new(backend.api, gas_limit, print_debug);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -238,6 +238,16 @@ where
         let instance_ptr = NonNull::from(wasmer_instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
+        let remaining_points = wasmer_instance
+            .exports
+            .get_global("wasmer_metering_remaining_points");
+        let points_exhausted = wasmer_instance
+            .exports
+            .get_global("wasmer_metering_points_exhausted");
+        env.set_global(
+            remaining_points.unwrap().clone(),
+            points_exhausted.unwrap().clone(),
+        );
         env.move_in(backend.storage, backend.querier);
         let instance = Instance {
             _inner: wasmer_instance,
