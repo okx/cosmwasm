@@ -540,7 +540,7 @@ mod tests {
         Box<WasmerInstance>,
     ) {
         let gas_limit = TESTING_GAS_LIMIT;
-        let env = Environment::new(api, gas_limit, false);
+        let mut env = Environment::new(api, gas_limit, false);
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();
@@ -569,6 +569,16 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
+        let remaining_points = wasmer_instance
+            .exports
+            .get_global("wasmer_metering_remaining_points");
+        let points_exhausted = wasmer_instance
+            .exports
+            .get_global("wasmer_metering_points_exhausted");
+        env.set_global(
+            remaining_points.unwrap().clone(),
+            points_exhausted.unwrap().clone(),
+        );
         env.set_storage_readonly(false);
 
         (env, instance)
