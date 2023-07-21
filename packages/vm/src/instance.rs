@@ -63,7 +63,7 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
         memory_limit: Option<Size>,
-        block_heigh: u64,
+        block_num: u64,
         block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let module = compile(code, memory_limit, &[])?;
@@ -74,20 +74,20 @@ where
             options.print_debug,
             None,
             None,
-            block_heigh,
+            block_num,
             block_milestone,
         )
     }
 
-    pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_heigh: u64) -> bool {
+    pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_num: u64) -> bool {
         // println!(
-        //     "block_milestone:{},block_heigh{}",
+        //     "block_milestone:{},block_num{}",
         //     block_milestone.len(),
-        //     block_heigh
+        //     block_num
         // );
         if let Some(value) = block_milestone.get("v2") {
-            if block_heigh >= *value {
-                println!("higher_than_v2:{},{}", block_heigh, value);
+            if block_num >= *value {
+                println!("higher_than_v2:{},{}", block_num, value);
                 return true;
             }
         }
@@ -101,7 +101,7 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
-        block_heigh: u64,
+        block_num: u64,
         block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let store = module.store();
@@ -110,7 +110,7 @@ where
             backend.api,
             gas_limit,
             print_debug,
-            block_heigh,
+            block_num,
             block_milestone.clone(),
         );
 
@@ -133,7 +133,7 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_write),
         );
 
-        if Self::higher_than_v2(block_milestone, block_heigh) {
+        if Self::higher_than_v2(block_milestone, block_num) {
             env_imports.insert(
                 "db_write_new",
                 Function::new_native_with_env(store, env.clone(), do_db_write),
@@ -407,7 +407,7 @@ pub fn instance_from_module<A, S, Q>(
     gas_limit: u64,
     print_debug: bool,
     extra_imports: Option<HashMap<&str, Exports>>,
-    block_heigh: u64,
+    block_num: u64,
     block_milestone: HashMap<String, u64>,
 ) -> VmResult<Instance<A, S, Q>>
 where
@@ -422,7 +422,7 @@ where
         print_debug,
         extra_imports,
         None,
-        block_heigh,
+        block_num,
         block_milestone,
     )
 }

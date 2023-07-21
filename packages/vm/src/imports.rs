@@ -58,15 +58,15 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
-pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_heigh: u64) -> bool {
+pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_num: u64) -> bool {
     println!(
-        "do_db_read block_milestone:{},block_heigh{}",
+        "do_db_read block_milestone:{},block_num{}",
         block_milestone.len(),
-        block_heigh
+        block_num
     );
     if let Some(value) = block_milestone.get("v2") {
-        if block_heigh >= *value {
-            println!("higher_than_v2:{},{}", block_heigh, value);
+        if block_num >= *value {
+            println!("higher_than_v2:{},{}", block_num, value);
             return true;
         }
     }
@@ -87,7 +87,7 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    if higher_than_v2(env.block_milestone.clone(), env.block_heigh) {
+    if higher_than_v2(env.block_milestone.clone(), env.block_num) {
         println!("--do_db_read--higher than v2");
     }
 

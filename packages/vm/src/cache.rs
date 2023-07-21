@@ -307,7 +307,7 @@ where
         checksum: &Checksum,
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
-        block_heigh: u64,
+        block_num: u64,
     ) -> VmResult<Instance<A, S, Q>> {
         let module = self.get_module(checksum)?;
         let instance = Instance::from_module(
@@ -317,7 +317,7 @@ where
             options.print_debug,
             None,
             Some(&self.instantiation_lock),
-            block_heigh,
+            block_num,
             self.block_milestone.clone(),
         )?;
         Ok(instance)
