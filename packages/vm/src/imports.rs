@@ -117,15 +117,16 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         Some(data) => data,
         None => return Ok(0),
     };
+    let result = write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr);
     env.state_cache.borrow_mut().insert(
         key,
         CacheStore {
-            value: out_data.clone(),
+            value: out_data,
             gas_info,
             key_type: KeyType::Read,
         },
     );
-    write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr)
+    result
 }
 
 fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
@@ -133,11 +134,9 @@ fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
     input: &[u8],
     output: u32,
 ) -> VmResult<u32> {
-    let ret = write_region(&env.memory(), output, input);
-    return match ret {
-        Ok(_) => Ok(output),
-        _ => write_to_contract(env, input),
-    };
+    write_region(&env.memory(), output, input)
+        .map(|_| output)
+        .or(write_to_contract(env, input))
 }
 
 pub fn consum_set_gas_cost(value_length: u32) -> GasInfo {
