@@ -281,7 +281,7 @@ where
                         .with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
                     result?;
                 }
-                _ => (),
+                KeyType::Read => (),
             }
         }
         self.env.state_cache.borrow_mut().clear();
