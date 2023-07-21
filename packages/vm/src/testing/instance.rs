@@ -2,6 +2,7 @@
 //! They should be imported via full path to ensure there is no confusion
 //! use cosmwasm_vm::testing::X
 use cosmwasm_std::Coin;
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::capabilities::capabilities_from_csv;
@@ -156,7 +157,7 @@ pub fn mock_instance_with_options(
         gas_limit: options.gas_limit,
         print_debug: options.print_debug,
     };
-    Instance::from_code(wasm, backend, options, memory_limit).unwrap()
+    Instance::from_code(wasm, backend, options, memory_limit, 0, HashMap::new()).unwrap()
 }
 
 /// Creates InstanceOptions for testing

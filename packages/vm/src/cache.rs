@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -57,6 +58,7 @@ pub struct CacheOptions {
     /// is desired but wasmd relies on it.
     pub base_dir: PathBuf,
     pub available_capabilities: HashSet<String>,
+    pub block_milestone: HashMap<String, u64>,
     pub memory_cache_size: Size,
     /// Memory limit for instances, in bytes. Use a value that is divisible by the Wasm page size 65536,
     /// e.g. full MiBs.
@@ -86,6 +88,7 @@ pub struct Cache<A: BackendApi, S: Storage, Q: Querier> {
     type_querier: PhantomData<Q>,
     /// To prevent concurrent access to `WasmerInstance::new`
     instantiation_lock: Mutex<()>,
+    block_milestone: HashMap<String, u64>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -111,6 +114,7 @@ where
         let CacheOptions {
             base_dir,
             available_capabilities,
+            block_milestone,
             memory_cache_size,
             instance_memory_limit,
         } = options;
@@ -129,6 +133,7 @@ where
             .map_err(|e| VmError::cache_err(format!("Error file system cache: {}", e)))?;
         Ok(Cache {
             available_capabilities,
+            block_milestone,
             inner: Mutex::new(CacheInner {
                 wasm_path,
                 instance_memory_limit,
@@ -302,6 +307,7 @@ where
         checksum: &Checksum,
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
+        block_heigh: u64,
     ) -> VmResult<Instance<A, S, Q>> {
         let module = self.get_module(checksum)?;
         let instance = Instance::from_module(
@@ -311,6 +317,8 @@ where
             options.print_debug,
             None,
             Some(&self.instantiation_lock),
+            block_heigh,
+            self.block_milestone.clone(),
         )?;
         Ok(instance)
     }

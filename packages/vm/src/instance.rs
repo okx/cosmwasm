@@ -63,6 +63,8 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
         memory_limit: Option<Size>,
+        block_heigh: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let module = compile(code, memory_limit, &[])?;
         Instance::from_module(
@@ -72,7 +74,24 @@ where
             options.print_debug,
             None,
             None,
+            block_heigh,
+            block_milestone,
         )
+    }
+
+    pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_heigh: u64) -> bool {
+        // println!(
+        //     "block_milestone:{},block_heigh{}",
+        //     block_milestone.len(),
+        //     block_heigh
+        // );
+        if let Some(value) = block_milestone.get("v2") {
+            if block_heigh >= *value {
+                println!("higher_than_v2:{},{}", block_heigh, value);
+                return true;
+            }
+        }
+        return false;
     }
 
     pub(crate) fn from_module(
@@ -82,10 +101,18 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
+        block_heigh: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(backend.api, gas_limit, print_debug);
+        let env = Environment::new(
+            backend.api,
+            gas_limit,
+            print_debug,
+            block_heigh,
+            block_milestone.clone(),
+        );
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -105,6 +132,13 @@ where
             "db_write",
             Function::new_native_with_env(store, env.clone(), do_db_write),
         );
+
+        if Self::higher_than_v2(block_milestone, block_heigh) {
+            env_imports.insert(
+                "db_write_new",
+                Function::new_native_with_env(store, env.clone(), do_db_write),
+            );
+        }
 
         // Removes the value at the given key. Different than writing &[] as future
         // scans will not find this key.
@@ -373,13 +407,24 @@ pub fn instance_from_module<A, S, Q>(
     gas_limit: u64,
     print_debug: bool,
     extra_imports: Option<HashMap<&str, Exports>>,
+    block_heigh: u64,
+    block_milestone: HashMap<String, u64>,
 ) -> VmResult<Instance<A, S, Q>>
 where
     A: BackendApi + 'static, // 'static is needed here to allow copying API instances into closures
     S: Storage + 'static, // 'static is needed here to allow using this in an Environment that is cloned into closures
     Q: Querier + 'static,
 {
-    Instance::from_module(module, backend, gas_limit, print_debug, extra_imports, None)
+    Instance::from_module(
+        module,
+        backend,
+        gas_limit,
+        print_debug,
+        extra_imports,
+        None,
+        block_heigh,
+        block_milestone,
+    )
 }
 
 #[cfg(test)]
