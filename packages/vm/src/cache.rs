@@ -62,10 +62,6 @@ pub struct CacheOptions {
     /// Memory limit for instances, in bytes. Use a value that is divisible by the Wasm page size 65536,
     /// e.g. full MiBs.
     pub instance_memory_limit: Size,
-
-    //for blockchain updrade
-    pub cur_block_num: u64,
-    pub block_milestone: HashMap<String, u64>,
 }
 
 pub struct CacheInner {
@@ -122,8 +118,6 @@ where
             available_capabilities,
             memory_cache_size,
             instance_memory_limit,
-            cur_block_num,
-            block_milestone,
         } = options;
 
         let state_path = base_dir.join(STATE_DIR);
@@ -152,8 +146,8 @@ where
             type_api: PhantomData::<A>,
             type_querier: PhantomData::<Q>,
             instantiation_lock: Mutex::new(()),
-            cur_block_num,
-            block_milestone,
+            cur_block_num: 0,
+            block_milestone: HashMap::new(),
         })
     }
 
@@ -343,6 +337,15 @@ where
         Ok(())
     }
 
+    pub fn update_milestone(
+        &mut self,
+        milestone: String,
+        block_num: u64,
+    ) -> VmResult<()> {
+        self.block_milestone.insert(milestone, block_num);
+        Ok(())
+    }
+
     /// Returns a module tied to a previously saved Wasm.
     /// Depending on availability, this is either generated from a memory cache, file system cache or Wasm code.
     /// This is part of `get_instance` but pulled out to reduce the locking time.
@@ -513,8 +516,6 @@ mod tests {
             available_capabilities: default_capabilities(),
             memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
             instance_memory_limit: TESTING_MEMORY_LIMIT,
-            cur_block_num: 0,
-            block_milestone: HashMap::new(),
         }
     }
 
@@ -526,8 +527,6 @@ mod tests {
             available_capabilities: capabilities,
             memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
             instance_memory_limit: TESTING_MEMORY_LIMIT,
-            cur_block_num: 0,
-            block_milestone: HashMap::new(),
         }
     }
 
@@ -632,8 +631,6 @@ mod tests {
                 available_capabilities: default_capabilities(),
                 memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
                 instance_memory_limit: TESTING_MEMORY_LIMIT,
-                cur_block_num: 0,
-                block_milestone: HashMap::new(),
             };
             let cache1: Cache<MockApi, MockStorage, MockQuerier> =
                 unsafe { Cache::new(options1).unwrap() };
