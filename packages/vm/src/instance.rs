@@ -80,17 +80,18 @@ where
     }
 
     pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_num: u64) -> bool {
-        // println!(
-        //     "block_milestone:{},block_num{}",
-        //     block_milestone.len(),
-        //     block_num
-        // );
+        println!(
+            "block_milestone:{},block_num{}",
+            block_milestone.len(),
+            block_num
+        );
         if let Some(value) = block_milestone.get("v2") {
             if block_num >= *value {
                 println!("higher_than_v2:{},{}", block_num, value);
                 return true;
             }
         }
+
         return false;
     }
 
@@ -110,8 +111,6 @@ where
             backend.api,
             gas_limit,
             print_debug,
-            block_num,
-            block_milestone.clone(),
         );
 
         let mut import_obj = ImportObject::new();

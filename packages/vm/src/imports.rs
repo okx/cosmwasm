@@ -24,7 +24,6 @@ use crate::sections::decode_sections;
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
 use crate::GasInfo;
-use std::collections::HashMap;
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -58,21 +57,6 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
-pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_num: u64) -> bool {
-    println!(
-        "do_db_read block_milestone:{},block_num{}",
-        block_milestone.len(),
-        block_num
-    );
-    if let Some(value) = block_milestone.get("v2") {
-        if block_num >= *value {
-            println!("higher_than_v2:{},{}", block_num, value);
-            return true;
-        }
-    }
-    return false;
-}
-
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -86,11 +70,6 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
     key_ptr: u32,
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
-
-    if higher_than_v2(env.block_milestone.clone(), env.block_num) {
-        println!("--do_db_read--higher than v2");
-    }
-
     let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let value = result?;
@@ -560,7 +539,7 @@ mod tests {
         Box<WasmerInstance>,
     ) {
         let gas_limit = TESTING_GAS_LIMIT;
-        let env = Environment::new(api, gas_limit, false, 0);
+        let env = Environment::new(api, gas_limit, false);
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();

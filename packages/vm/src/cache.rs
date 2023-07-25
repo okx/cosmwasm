@@ -58,11 +58,14 @@ pub struct CacheOptions {
     /// is desired but wasmd relies on it.
     pub base_dir: PathBuf,
     pub available_capabilities: HashSet<String>,
-    pub block_milestone: HashMap<String, u64>,
     pub memory_cache_size: Size,
     /// Memory limit for instances, in bytes. Use a value that is divisible by the Wasm page size 65536,
     /// e.g. full MiBs.
     pub instance_memory_limit: Size,
+
+    //for blockchain updrade
+    pub cur_block_num: u64,
+    pub block_milestone: HashMap<String, u64>,
 }
 
 pub struct CacheInner {
@@ -88,6 +91,9 @@ pub struct Cache<A: BackendApi, S: Storage, Q: Querier> {
     type_querier: PhantomData<Q>,
     /// To prevent concurrent access to `WasmerInstance::new`
     instantiation_lock: Mutex<()>,
+
+    //for blockchain updrade
+    cur_block_num: u64,
     block_milestone: HashMap<String, u64>,
 }
 
@@ -114,9 +120,10 @@ where
         let CacheOptions {
             base_dir,
             available_capabilities,
-            block_milestone,
             memory_cache_size,
             instance_memory_limit,
+            cur_block_num,
+            block_milestone,
         } = options;
 
         let state_path = base_dir.join(STATE_DIR);
@@ -133,7 +140,6 @@ where
             .map_err(|e| VmError::cache_err(format!("Error file system cache: {}", e)))?;
         Ok(Cache {
             available_capabilities,
-            block_milestone,
             inner: Mutex::new(CacheInner {
                 wasm_path,
                 instance_memory_limit,
@@ -146,7 +152,14 @@ where
             type_api: PhantomData::<A>,
             type_querier: PhantomData::<Q>,
             instantiation_lock: Mutex::new(()),
+            cur_block_num,
+            block_milestone,
         })
+    }
+
+    pub fn set_cur_block_num(&mut self, cur_block_num: u64) -> VmResult<()>{
+        self.cur_block_num = cur_block_num;
+        Ok(())
     }
 
     pub fn stats(&self) -> Stats {
@@ -307,7 +320,6 @@ where
         checksum: &Checksum,
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
-        block_num: u64,
     ) -> VmResult<Instance<A, S, Q>> {
         let module = self.get_module(checksum)?;
         let instance = Instance::from_module(
@@ -317,10 +329,18 @@ where
             options.print_debug,
             None,
             Some(&self.instantiation_lock),
-            block_num,
+            self.cur_block_num,
             self.block_milestone.clone(),
         )?;
         Ok(instance)
+    }
+
+    pub fn update_cur_block_num(
+        &mut self,
+        cur_block_num: u64,
+    ) -> VmResult<()> {
+        self.cur_block_num = cur_block_num;
+        Ok(())
     }
 
     /// Returns a module tied to a previously saved Wasm.
@@ -493,6 +513,8 @@ mod tests {
             available_capabilities: default_capabilities(),
             memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
             instance_memory_limit: TESTING_MEMORY_LIMIT,
+            cur_block_num: 0,
+            block_milestone: HashMap::new(),
         }
     }
 
@@ -504,6 +526,8 @@ mod tests {
             available_capabilities: capabilities,
             memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
             instance_memory_limit: TESTING_MEMORY_LIMIT,
+            cur_block_num: 0,
+            block_milestone: HashMap::new(),
         }
     }
 
@@ -608,6 +632,8 @@ mod tests {
                 available_capabilities: default_capabilities(),
                 memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
                 instance_memory_limit: TESTING_MEMORY_LIMIT,
+                cur_block_num: 0,
+                block_milestone: HashMap::new(),
             };
             let cache1: Cache<MockApi, MockStorage, MockQuerier> =
                 unsafe { Cache::new(options1).unwrap() };
@@ -620,6 +646,8 @@ mod tests {
                 available_capabilities: default_capabilities(),
                 memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
                 instance_memory_limit: TESTING_MEMORY_LIMIT,
+                cur_block_num: 0,
+                block_milestone: HashMap::new(),
             };
             let cache2: Cache<MockApi, MockStorage, MockQuerier> =
                 unsafe { Cache::new(options2).unwrap() };
