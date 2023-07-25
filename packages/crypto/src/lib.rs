@@ -7,6 +7,7 @@
 
 mod ed25519;
 mod errors;
+mod hash;
 mod identity_digest;
 mod secp256k1;
 
@@ -20,3 +21,6 @@ pub use crate::errors::{CryptoError, CryptoResult};
 pub use crate::secp256k1::{secp256k1_recover_pubkey, secp256k1_verify};
 #[doc(hidden)]
 pub use crate::secp256k1::{ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, MESSAGE_HASH_MAX_LEN};
+
+#[doc(hidden)]
+pub use crate::hash::keccak256;
