@@ -56,6 +56,7 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
+
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -69,6 +70,7 @@ pub fn do_db_read<A: BackendApi, S: Storage, Q: Querier>(
     key_ptr: u32,
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+
     let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let value = result?;

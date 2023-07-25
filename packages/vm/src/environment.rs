@@ -110,11 +110,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> WasmerEnv for Environment<A, S, Q> {
 }
 
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(
-        api: A,
-        gas_limit: u64,
-        print_debug: bool,
-    ) -> Self {
+    pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
         Environment {
             api,
             print_debug,
