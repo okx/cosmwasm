@@ -150,12 +150,6 @@ where
             block_milestone: HashMap::new(),
         })
     }
-
-    pub fn set_cur_block_num(&mut self, cur_block_num: u64) -> VmResult<()>{
-        self.cur_block_num = cur_block_num;
-        Ok(())
-    }
-
     pub fn stats(&self) -> Stats {
         self.inner.lock().unwrap().stats
     }

@@ -79,15 +79,13 @@ where
         )
     }
 
-    pub fn higher_than_v2(block_milestone: HashMap<String, u64>, block_num: u64) -> bool {
-        println!(
-            "block_milestone:{},block_num{}",
-            block_milestone.len(),
-            block_num
-        );
-        if let Some(value) = block_milestone.get("v2") {
-            if block_num >= *value {
-                println!("higher_than_v2:{},{}", block_num, value);
+    pub fn higher_than_wasm_v1(cur_block_num: u64, block_milestone: HashMap<String, u64>) -> bool {
+        if let Some(value) = block_milestone.get("wasm_v1") {
+            if cur_block_num >= *value {
+                println!(
+                    "debug comsmwasm higher_than_wasm_v1, cur_block_num:{}, milestone:{}",
+                    cur_block_num, value
+                );
                 return true;
             }
         }
@@ -102,16 +100,12 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
-        block_num: u64,
+        cur_block_num: u64,
         block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(
-            backend.api,
-            gas_limit,
-            print_debug,
-        );
+        let env = Environment::new(backend.api, gas_limit, print_debug);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -132,7 +126,7 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_write),
         );
 
-        if Self::higher_than_v2(block_milestone, block_num) {
+        if Self::higher_than_wasm_v1(cur_block_num, block_milestone) {
             env_imports.insert(
                 "db_write_new",
                 Function::new_native_with_env(store, env.clone(), do_db_write),
