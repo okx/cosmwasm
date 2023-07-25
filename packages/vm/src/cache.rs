@@ -9,10 +9,11 @@ use std::sync::Mutex;
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::checksum::Checksum;
-use crate::compatibility::check_wasm;
+use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS, SUPPORTED_IMPORTS_V1};
 use crate::errors::{VmError, VmResult};
 use crate::filesystem::mkdir_p;
 use crate::instance::{Instance, InstanceOptions};
+use crate::milestone::higher_than_wasm_v1;
 use crate::modules::{FileSystemCache, InMemoryCache, PinnedMemoryCache};
 use crate::size::Size;
 use crate::static_analysis::{deserialize_wasm, has_ibc_entry_points};
@@ -173,7 +174,13 @@ where
     /// This does the same as [`save_wasm_unchecked`] plus the static checks.
     /// When a Wasm blob is stored the first time, use this function.
     pub fn save_wasm(&self, wasm: &[u8]) -> VmResult<Checksum> {
-        check_wasm(wasm, &self.available_capabilities)?;
+        let imports = if higher_than_wasm_v1(self.cur_block_num, self.block_milestone.clone()) {
+            SUPPORTED_IMPORTS_V1
+        } else {
+            SUPPORTED_IMPORTS
+        };
+
+        check_wasm(wasm, &self.available_capabilities, imports)?;
         self.save_wasm_unchecked(wasm)
     }
 
@@ -323,19 +330,12 @@ where
         Ok(instance)
     }
 
-    pub fn update_cur_block_num(
-        &mut self,
-        cur_block_num: u64,
-    ) -> VmResult<()> {
+    pub fn update_cur_block_num(&mut self, cur_block_num: u64) -> VmResult<()> {
         self.cur_block_num = cur_block_num;
         Ok(())
     }
 
-    pub fn update_milestone(
-        &mut self,
-        milestone: String,
-        block_num: u64,
-    ) -> VmResult<()> {
+    pub fn update_milestone(&mut self, milestone: String, block_num: u64) -> VmResult<()> {
         self.block_milestone.insert(milestone, block_num);
         Ok(())
     }

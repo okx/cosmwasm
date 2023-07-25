@@ -9,7 +9,27 @@ use crate::static_analysis::{deserialize_wasm, ExportInfo};
 
 /// Lists all imports we provide upon instantiating the instance in Instance::from_module()
 /// This should be updated when new imports are added
-const SUPPORTED_IMPORTS: &[&str] = &[
+pub const SUPPORTED_IMPORTS: &[&str] = &[
+    "env.abort",
+    "env.db_read",
+    "env.db_write",
+    "env.db_remove",
+    "env.addr_validate",
+    "env.addr_canonicalize",
+    "env.addr_humanize",
+    "env.secp256k1_verify",
+    "env.secp256k1_recover_pubkey",
+    "env.ed25519_verify",
+    "env.ed25519_batch_verify",
+    "env.debug",
+    "env.query_chain",
+    #[cfg(feature = "iterator")]
+    "env.db_scan",
+    #[cfg(feature = "iterator")]
+    "env.db_next",
+];
+
+pub const SUPPORTED_IMPORTS_V1: &[&str] = &[
     "env.abort",
     "env.db_read",
     "env.db_write",
@@ -72,13 +92,17 @@ const TABLE_SIZE_LIMIT: u32 = 2500; // entries
 const MAX_IMPORTS: usize = 100;
 
 /// Checks if the data is valid wasm and compatibility with the CosmWasm API (imports and exports)
-pub fn check_wasm(wasm_code: &[u8], available_capabilities: &HashSet<String>) -> VmResult<()> {
+pub fn check_wasm(
+    wasm_code: &[u8],
+    available_capabilities: &HashSet<String>,
+    supported_imports: &[&str],
+) -> VmResult<()> {
     let module = deserialize_wasm(wasm_code)?;
     check_wasm_tables(&module)?;
     check_wasm_memories(&module)?;
     check_interface_version(&module)?;
     check_wasm_exports(&module)?;
-    check_wasm_imports(&module, SUPPORTED_IMPORTS)?;
+    check_wasm_imports(&module, supported_imports)?;
     check_wasm_capabilities(&module, available_capabilities)?;
     Ok(())
 }
@@ -216,8 +240,11 @@ fn check_wasm_imports(module: &Module, supported_imports: &[&str]) -> VmResult<(
             let required_import_names: BTreeSet<_> =
                 required_imports.iter().map(full_import_name).collect();
             return Err(VmError::static_validation_err(format!(
-                "Wasm contract requires unsupported import: \"{}\". Required imports: {}. Available imports: {:?}.",
-                full_name, required_import_names.to_string_limited(200), supported_imports
+                "Wasm contract requires unsupported import: \"{}\". Required imports: {}. \
+                Available imports: {:?}.",
+                full_name,
+                required_import_names.to_string_limited(200),
+                supported_imports
             )));
         }
 

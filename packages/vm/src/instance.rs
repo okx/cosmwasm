@@ -17,6 +17,7 @@ use crate::imports::{
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
+use crate::milestone::higher_than_wasm_v1;
 use crate::size::Size;
 use crate::wasm_backend::compile;
 
@@ -79,20 +80,6 @@ where
         )
     }
 
-    pub fn higher_than_wasm_v1(cur_block_num: u64, block_milestone: HashMap<String, u64>) -> bool {
-        if let Some(value) = block_milestone.get("wasm_v1") {
-            if cur_block_num >= *value {
-                println!(
-                    "debug comsmwasm higher_than_wasm_v1, cur_block_num:{}, milestone:{}",
-                    cur_block_num, value
-                );
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     pub(crate) fn from_module(
         module: &Module,
         backend: Backend<A, S, Q>,
@@ -126,7 +113,7 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_write),
         );
 
-        if Self::higher_than_wasm_v1(cur_block_num, block_milestone) {
+        if higher_than_wasm_v1(cur_block_num, block_milestone) {
             env_imports.insert(
                 "db_write_new",
                 Function::new_native_with_env(store, env.clone(), do_db_write),

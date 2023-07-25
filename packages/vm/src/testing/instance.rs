@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::capabilities::capabilities_from_csv;
-use crate::compatibility::check_wasm;
+use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS};
 use crate::instance::{Instance, InstanceOptions};
 use crate::size::Size;
 use crate::{Backend, BackendApi, Querier, Storage};
@@ -128,7 +128,7 @@ pub fn mock_instance_with_options(
     wasm: &[u8],
     options: MockInstanceOptions,
 ) -> Instance<MockApi, MockStorage, MockQuerier> {
-    check_wasm(wasm, &options.available_capabilities).unwrap();
+    check_wasm(wasm, &options.available_capabilities, SUPPORTED_IMPORTS).unwrap();
     let contract_address = MOCK_CONTRACT_ADDR;
 
     // merge balances

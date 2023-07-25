@@ -15,6 +15,7 @@ mod imports;
 mod instance;
 mod limited;
 mod memory;
+mod milestone;
 mod modules;
 mod sections;
 mod serde;
