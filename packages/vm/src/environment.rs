@@ -36,8 +36,6 @@ pub struct GasConfig {
     pub ed25519_batch_verify_cost: u64,
     /// ed25519 batch signature verification cost (single public key)
     pub ed25519_batch_verify_one_pubkey_cost: u64,
-    /// keccak256 hash cost
-    pub keccak256_cost: u64,
 }
 
 impl Default for GasConfig {
@@ -55,7 +53,6 @@ impl Default for GasConfig {
             // From https://docs.rs/ed25519-zebra/2.2.0/ed25519_zebra/batch/index.html
             ed25519_batch_verify_cost: 63 * GAS_PER_US / 2,
             ed25519_batch_verify_one_pubkey_cost: 63 * GAS_PER_US / 4,
-            keccak256_cost: 64 * GAS_PER_US,
         }
     }
 }
@@ -113,7 +110,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> WasmerEnv for Environment<A, S, Q> {
 }
 
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
+    pub fn new(
+        api: A,
+        gas_limit: u64,
+        print_debug: bool,
+    ) -> Self {
         Environment {
             api,
             print_debug,
@@ -452,7 +453,6 @@ mod tests {
                 "secp256k1_recover_pubkey" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u64 { 0 }),
                 "ed25519_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "ed25519_batch_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
-                "keccak256" => Function::new_native(store, |_a: u32 | -> u64 { 0 }),
                 "debug" => Function::new_native(store, |_a: u32| {}),
                 "abort" => Function::new_native(store, |_a: u32| {}),
             },

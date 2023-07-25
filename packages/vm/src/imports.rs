@@ -3,8 +3,7 @@
 use std::cmp::max;
 
 use cosmwasm_crypto::{
-    ed25519_batch_verify, ed25519_verify, keccak256, secp256k1_recover_pubkey, secp256k1_verify,
-    CryptoError,
+    ed25519_batch_verify, ed25519_verify, secp256k1_recover_pubkey, secp256k1_verify, CryptoError,
 };
 use cosmwasm_crypto::{
     ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, MESSAGE_HASH_MAX_LEN,
@@ -57,12 +56,6 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
-
-/// Max length of a keccak256 message in bytes.
-/// This is an arbitrary value, for performance / memory contraints. If you need to verify larger
-/// messages, let us know.
-const MAX_LENGTH_KECCAK256_MESSAGE: usize = 128 * 1024;
-
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -386,33 +379,6 @@ pub fn do_ed25519_batch_verify<A: BackendApi, S: Storage, Q: Querier>(
     Ok(code)
 }
 
-pub fn do_keccak256<A: BackendApi, S: Storage, Q: Querier>(
-    env: &Environment<A, S, Q>,
-    data_ptr: u32,
-) -> VmResult<u64> {
-    let message = read_region(&env.memory(), data_ptr, MAX_LENGTH_KECCAK256_MESSAGE)?;
-
-    let result = keccak256(&message);
-    let gas_info = GasInfo::with_cost(env.gas_config.keccak256_cost);
-    process_gas_info::<A, S, Q>(env, gas_info)?;
-
-    match result {
-        Ok(digest) => {
-            let digest_ptr = write_to_contract::<A, S, Q>(env, digest.as_ref())?;
-            Ok(to_low_half(digest_ptr))
-        }
-        Err(err) => match err {
-            CryptoError::InvalidHashFormat { .. }
-            | CryptoError::InvalidSignatureFormat { .. }
-            | CryptoError::InvalidRecoveryParam { .. }
-            | CryptoError::GenericErr { .. } => Ok(to_high_half(err.code())),
-            CryptoError::BatchErr { .. } | CryptoError::InvalidPubkeyFormat { .. } => {
-                panic!("Error must not happen for this call")
-            }
-        },
-    }
-}
-
 /// Prints a debug message to console.
 /// This does not charge gas, so debug printing should be disabled when used in a blockchain module.
 pub fn do_debug<A: BackendApi, S: Storage, Q: Querier>(
@@ -592,7 +558,6 @@ mod tests {
                 "secp256k1_recover_pubkey" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u64 { 0 }),
                 "ed25519_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "ed25519_batch_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
-                "keccak256" => Function::new_native(store, |_a: u32| -> u64 { 0 }),
                 "debug" => Function::new_native(store, |_a: u32| {}),
                 "abort" => Function::new_native(store, |_a: u32| {}),
             },

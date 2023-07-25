@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::checksum::Checksum;
-use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS, SUPPORTED_IMPORTS_V1};
+use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS};
 use crate::errors::{VmError, VmResult};
 use crate::filesystem::mkdir_p;
 use crate::instance::{Instance, InstanceOptions};
@@ -175,7 +175,8 @@ where
     /// When a Wasm blob is stored the first time, use this function.
     pub fn save_wasm(&self, wasm: &[u8]) -> VmResult<Checksum> {
         let imports = if higher_than_wasm_v1(self.cur_block_num, self.block_milestone.clone()) {
-            SUPPORTED_IMPORTS_V1
+            // TODO upgrade
+            SUPPORTED_IMPORTS
         } else {
             SUPPORTED_IMPORTS
         };
