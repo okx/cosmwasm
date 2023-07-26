@@ -431,8 +431,15 @@ mod tests {
     fn required_capabilities_works() {
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance =
-            Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            CONTRACT,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 0);
     }
 
@@ -454,7 +461,15 @@ mod tests {
 
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance = Instance::from_code(&wasm, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            &wasm,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 3);
         assert!(instance.required_capabilities().contains("nutrients"));
         assert!(instance.required_capabilities().contains("sun"));
@@ -500,6 +515,8 @@ mod tests {
             false,
             Some(extra_imports),
             None,
+            0,
+            HashMap::new(),
         )
         .unwrap();
 

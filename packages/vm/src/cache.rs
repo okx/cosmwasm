@@ -638,8 +638,6 @@ mod tests {
                 available_capabilities: default_capabilities(),
                 memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
                 instance_memory_limit: TESTING_MEMORY_LIMIT,
-                cur_block_num: 0,
-                block_milestone: HashMap::new(),
             };
             let cache2: Cache<MockApi, MockStorage, MockQuerier> =
                 unsafe { Cache::new(options2).unwrap() };
