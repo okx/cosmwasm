@@ -2,10 +2,11 @@
 //! They should be imported via full path to ensure there is no confusion
 //! use cosmwasm_vm::testing::X
 use cosmwasm_std::Coin;
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::capabilities::capabilities_from_csv;
-use crate::compatibility::check_wasm;
+use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS};
 use crate::instance::{Instance, InstanceOptions};
 use crate::size::Size;
 use crate::{Backend, BackendApi, Querier, Storage};
@@ -126,7 +127,7 @@ pub fn mock_instance_with_options(
     wasm: &[u8],
     options: MockInstanceOptions,
 ) -> Instance<MockApi, MockStorage, MockQuerier> {
-    check_wasm(wasm, &options.available_capabilities).unwrap();
+    check_wasm(wasm, &options.available_capabilities, SUPPORTED_IMPORTS).unwrap();
     let contract_address = MOCK_CONTRACT_ADDR;
 
     // merge balances
@@ -155,7 +156,7 @@ pub fn mock_instance_with_options(
         gas_limit: options.gas_limit,
         print_debug: options.print_debug,
     };
-    Instance::from_code(wasm, backend, options, memory_limit).unwrap()
+    Instance::from_code(wasm, backend, options, memory_limit, 0, HashMap::new()).unwrap()
 }
 
 /// Creates InstanceOptions for testing

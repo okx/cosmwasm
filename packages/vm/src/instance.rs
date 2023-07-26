@@ -17,6 +17,7 @@ use crate::imports::{
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
+use crate::milestone::higher_than_wasm_v1;
 use crate::size::Size;
 use crate::wasm_backend::compile;
 
@@ -63,6 +64,8 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
         memory_limit: Option<Size>,
+        block_num: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let module = compile(code, memory_limit, &[])?;
         Instance::from_module(
@@ -72,6 +75,8 @@ where
             options.print_debug,
             None,
             None,
+            block_num,
+            block_milestone,
         )
     }
 
@@ -82,6 +87,8 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
+        cur_block_num: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let store = module.store();
 
@@ -105,6 +112,10 @@ where
             "db_write",
             Function::new_native_with_env(store, env.clone(), do_db_write),
         );
+
+        if higher_than_wasm_v1(cur_block_num, block_milestone) {
+            //TODO upgrade
+        }
 
         // Removes the value at the given key. Different than writing &[] as future
         // scans will not find this key.
@@ -373,13 +384,24 @@ pub fn instance_from_module<A, S, Q>(
     gas_limit: u64,
     print_debug: bool,
     extra_imports: Option<HashMap<&str, Exports>>,
+    block_num: u64,
+    block_milestone: HashMap<String, u64>,
 ) -> VmResult<Instance<A, S, Q>>
 where
     A: BackendApi + 'static, // 'static is needed here to allow copying API instances into closures
     S: Storage + 'static, // 'static is needed here to allow using this in an Environment that is cloned into closures
     Q: Querier + 'static,
 {
-    Instance::from_module(module, backend, gas_limit, print_debug, extra_imports, None)
+    Instance::from_module(
+        module,
+        backend,
+        gas_limit,
+        print_debug,
+        extra_imports,
+        None,
+        block_num,
+        block_milestone,
+    )
 }
 
 #[cfg(test)]
@@ -410,8 +432,15 @@ mod tests {
     fn required_capabilities_works() {
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance =
-            Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            CONTRACT,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 0);
     }
 
@@ -433,7 +462,15 @@ mod tests {
 
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance = Instance::from_code(&wasm, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            &wasm,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 3);
         assert!(instance.required_capabilities().contains("nutrients"));
         assert!(instance.required_capabilities().contains("sun"));
@@ -479,6 +516,8 @@ mod tests {
             false,
             Some(extra_imports),
             None,
+            0,
+            HashMap::new(),
         )
         .unwrap();
 
@@ -708,7 +747,7 @@ mod tests {
 
         let report2 = instance.create_gas_report();
         assert_eq!(report2.used_externally, 73);
-        assert_eq!(report2.used_internally, 5764950198);
+        assert_eq!(report2.used_internally, 5791650198);
         assert_eq!(report2.limit, LIMIT);
         assert_eq!(
             report2.remaining,
@@ -897,7 +936,7 @@ mod tests {
             .unwrap();
 
         let init_used = orig_gas - instance.get_gas_left();
-        assert_eq!(init_used, 5764950271);
+        assert_eq!(init_used, 5791650271);
     }
 
     #[test]
@@ -920,7 +959,7 @@ mod tests {
             .unwrap();
 
         let execute_used = gas_before_execute - instance.get_gas_left();
-        assert_eq!(execute_used, 8548903606);
+        assert_eq!(execute_used, 8542003606);
     }
 
     #[test]
@@ -954,6 +993,6 @@ mod tests {
         assert_eq!(answer.as_slice(), b"{\"verifier\":\"verifies\"}");
 
         let query_used = gas_before_query - instance.get_gas_left();
-        assert_eq!(query_used, 4493700006);
+        assert_eq!(query_used, 4514700006);
     }
 }

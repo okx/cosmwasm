@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -8,10 +9,11 @@ use std::sync::Mutex;
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::checksum::Checksum;
-use crate::compatibility::check_wasm;
+use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS};
 use crate::errors::{VmError, VmResult};
 use crate::filesystem::mkdir_p;
 use crate::instance::{Instance, InstanceOptions};
+use crate::milestone::higher_than_wasm_v1;
 use crate::modules::{FileSystemCache, InMemoryCache, PinnedMemoryCache};
 use crate::size::Size;
 use crate::static_analysis::{deserialize_wasm, has_ibc_entry_points};
@@ -86,6 +88,10 @@ pub struct Cache<A: BackendApi, S: Storage, Q: Querier> {
     type_querier: PhantomData<Q>,
     /// To prevent concurrent access to `WasmerInstance::new`
     instantiation_lock: Mutex<()>,
+
+    //for blockchain updrade
+    cur_block_num: u64,
+    block_milestone: HashMap<String, u64>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -141,6 +147,8 @@ where
             type_api: PhantomData::<A>,
             type_querier: PhantomData::<Q>,
             instantiation_lock: Mutex::new(()),
+            cur_block_num: 0,
+            block_milestone: HashMap::new(),
         })
     }
 
@@ -160,7 +168,14 @@ where
     }
 
     pub fn save_wasm(&self, wasm: &[u8]) -> VmResult<Checksum> {
-        check_wasm(wasm, &self.available_capabilities)?;
+        let imports = if higher_than_wasm_v1(self.cur_block_num, self.block_milestone.clone()) {
+            // TODO upgrade
+            SUPPORTED_IMPORTS
+        } else {
+            SUPPORTED_IMPORTS
+        };
+
+        check_wasm(wasm, &self.available_capabilities, imports)?;
         let module = compile(wasm, None, &[])?;
 
         let mut cache = self.inner.lock().unwrap();
@@ -291,8 +306,20 @@ where
             options.print_debug,
             None,
             Some(&self.instantiation_lock),
+            self.cur_block_num,
+            self.block_milestone.clone(),
         )?;
         Ok(instance)
+    }
+
+    pub fn update_cur_block_num(&mut self, cur_block_num: u64) -> VmResult<()> {
+        self.cur_block_num = cur_block_num;
+        Ok(())
+    }
+
+    pub fn update_milestone(&mut self, milestone: String, block_num: u64) -> VmResult<()> {
+        self.block_milestone.insert(milestone, block_num);
+        Ok(())
     }
 
     /// Returns a module tied to a previously saved Wasm.

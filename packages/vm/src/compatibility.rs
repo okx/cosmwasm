@@ -9,7 +9,7 @@ use crate::static_analysis::{deserialize_wasm, ExportInfo};
 
 /// Lists all imports we provide upon instantiating the instance in Instance::from_module()
 /// This should be updated when new imports are added
-const SUPPORTED_IMPORTS: &[&str] = &[
+pub const SUPPORTED_IMPORTS: &[&str] = &[
     "env.abort",
     "env.db_read",
     "env.db_write",
@@ -51,12 +51,16 @@ const SUPPORTED_INTERFACE_VERSIONS: &[&str] = &[
 const MEMORY_LIMIT: u32 = 512; // in pages
 
 /// Checks if the data is valid wasm and compatibility with the CosmWasm API (imports and exports)
-pub fn check_wasm(wasm_code: &[u8], available_capabilities: &HashSet<String>) -> VmResult<()> {
+pub fn check_wasm(
+    wasm_code: &[u8],
+    available_capabilities: &HashSet<String>,
+    supported_imports: &[&str],
+) -> VmResult<()> {
     let module = deserialize_wasm(wasm_code)?;
     check_wasm_memories(&module)?;
     check_interface_version(&module)?;
     check_wasm_exports(&module)?;
-    check_wasm_imports(&module, SUPPORTED_IMPORTS)?;
+    check_wasm_imports(&module, supported_imports)?;
     check_wasm_capabilities(&module, available_capabilities)?;
     Ok(())
 }
@@ -210,12 +214,12 @@ mod tests {
     #[test]
     fn check_wasm_passes_for_latest_contract() {
         // this is our reference check, must pass
-        check_wasm(CONTRACT, &default_capabilities()).unwrap();
+        check_wasm(CONTRACT, &default_capabilities(), SUPPORTED_IMPORTS).unwrap();
     }
 
     #[test]
     fn check_wasm_old_contract() {
-        match check_wasm(CONTRACT_0_15, &default_capabilities()) {
+        match check_wasm(CONTRACT_0_15, &default_capabilities(), SUPPORTED_IMPORTS) {
             Err(VmError::StaticValidationErr { msg, .. }) => assert_eq!(
                 msg,
                 "Wasm contract has unknown interface_version_* marker export (see https://github.com/CosmWasm/cosmwasm/blob/main/packages/vm/README.md)"
@@ -224,7 +228,7 @@ mod tests {
             Ok(_) => panic!("This must not succeeed"),
         };
 
-        match check_wasm(CONTRACT_0_14, &default_capabilities()) {
+        match check_wasm(CONTRACT_0_14, &default_capabilities(), SUPPORTED_IMPORTS) {
             Err(VmError::StaticValidationErr { msg, .. }) => assert_eq!(
                 msg,
                 "Wasm contract has unknown interface_version_* marker export (see https://github.com/CosmWasm/cosmwasm/blob/main/packages/vm/README.md)"
@@ -233,7 +237,7 @@ mod tests {
             Ok(_) => panic!("This must not succeeed"),
         };
 
-        match check_wasm(CONTRACT_0_12, &default_capabilities()) {
+        match check_wasm(CONTRACT_0_12, &default_capabilities(), SUPPORTED_IMPORTS) {
             Err(VmError::StaticValidationErr { msg, .. }) => assert_eq!(
                 msg,
                 "Wasm contract missing a required marker export: interface_version_*"
@@ -242,7 +246,7 @@ mod tests {
             Ok(_) => panic!("This must not succeeed"),
         };
 
-        match check_wasm(CONTRACT_0_7, &default_capabilities()) {
+        match check_wasm(CONTRACT_0_7, &default_capabilities(), SUPPORTED_IMPORTS) {
             Err(VmError::StaticValidationErr { msg, .. }) => assert_eq!(
                 msg,
                 "Wasm contract missing a required marker export: interface_version_*"
