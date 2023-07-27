@@ -148,6 +148,7 @@ pub trait BackendApi: Copy + Clone + Send {
                                                             block_env: &Env,
                                                             gas_limit: u64
     ) -> (VmResult<Vec<u8>>, GasInfo);
+    fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String>;
 }
 
 pub trait Querier {

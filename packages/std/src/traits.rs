@@ -194,6 +194,18 @@ pub trait Api {
     /// Emits a debugging message that is handled depending on the environment (typically printed to console or ignored).
     /// Those messages are not persisted to chain.
     fn debug(&self, message: &str);
+
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        code_id: u64,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        is_create2: bool,
+        salt: Binary,
+    ) -> StdResult<Addr>;
 }
 
 /// A short-hand alias for the two-level query result (1. accessing the contract, 2. executing query in the contract)

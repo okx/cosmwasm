@@ -25,6 +25,7 @@ pub const SUPPORTED_IMPORTS: &[&str] = &[
     "env.ed25519_verify",
     "env.ed25519_batch_verify",
     "env.debug",
+    "env.new_contract",
     "env.query_chain",
     "env.call",
     "env.delegate_call",
