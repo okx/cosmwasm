@@ -95,7 +95,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let b = env.state_cache.borrow();
+    let mut b = env.state_cache.borrow_mut();
     let cache = b.get(&key);
     let ret = match cache {
         Some(store_cache) => {
@@ -118,7 +118,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         None => return Ok(0),
     };
     let result = write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr);
-    env.state_cache.borrow_mut().insert(
+    b.insert(
         key,
         CacheStore {
             value: out_data,
@@ -661,7 +661,7 @@ mod tests {
         Box<WasmerInstance>,
     ) {
         let gas_limit = TESTING_GAS_LIMIT;
-        let mut env = Environment::new(api, gas_limit, false);
+        let env = Environment::new(api, gas_limit, false);
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();
@@ -690,13 +690,13 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
-        let remaining_points = wasmer_instance
+        let remaining_points = instance
             .exports
             .get_global("wasmer_metering_remaining_points");
-        let points_exhausted = wasmer_instance
+        let points_exhausted = instance
             .exports
             .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
+        env.move_in_global(
             remaining_points.unwrap().clone(),
             points_exhausted.unwrap().clone(),
         );

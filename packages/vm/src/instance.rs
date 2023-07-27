@@ -85,7 +85,7 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let mut env = Environment::new(backend.api, gas_limit, print_debug);
+        let env = Environment::new(backend.api, gas_limit, print_debug);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -259,7 +259,7 @@ where
         let points_exhausted = wasmer_instance
             .exports
             .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
+        env.move_in_global(
             remaining_points.unwrap().clone(),
             points_exhausted.unwrap().clone(),
         );
@@ -276,7 +276,7 @@ where
     }
 
     pub fn commit_store(&mut self) -> VmResult<()> {
-        let binding = self.env.state_cache.borrow();
+        let mut binding = self.env.state_cache.borrow_mut();
         for (key, cache_store) in binding.iter() {
             match cache_store.key_type {
                 KeyType::Write => {
@@ -294,7 +294,7 @@ where
                 KeyType::Read => (),
             }
         }
-        self.env.state_cache.borrow_mut().clear();
+        binding.clear();
         Ok(())
     }
 
