@@ -317,6 +317,7 @@ fn execute_cpu_loop() {
     assert_eq!(0, init_res.messages.len());
 
     let execute_info = mock_info(creator.as_str(), &[]);
+
     // Note: we need to use the production-call, not the testing call (which unwraps any vm error)
     let execute_res = call_execute::<_, _, _, Empty>(
         &mut deps,
