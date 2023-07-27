@@ -7,12 +7,12 @@ use wasmer::{Exports, Function, ImportObject, Instance as WasmerInstance, Module
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{Environment, InternalCallParam};
+use crate::environment::{Environment, InternalCallParam, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
-    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_remove,
-    do_db_write, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
-    do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call, do_new_contract,
+    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,
+    do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_ed25519_batch_verify,
+    do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call, do_new_contract,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -87,7 +87,7 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new_ex(backend.api, gas_limit, print_debug, param);
+        let mut env = Environment::new_ex(backend.api, gas_limit, print_debug, param);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -101,11 +101,21 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_read),
         );
 
+        env_imports.insert(
+            "db_read_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_read_ex),
+        );
+
         // Writes the given value into the database entry at the given key.
         // Ownership of both input and output pointer is not transferred to the host.
         env_imports.insert(
             "db_write",
             Function::new_native_with_env(store, env.clone(), do_db_write),
+        );
+
+        env_imports.insert(
+            "db_write_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_write_ex),
         );
 
         // Removes the value at the given key. Different than writing &[] as future
@@ -115,6 +125,11 @@ where
         env_imports.insert(
             "db_remove",
             Function::new_native_with_env(store, env.clone(), do_db_remove),
+        );
+
+        env_imports.insert(
+            "db_remove_ex",
+            Function::new_native_with_env(store, env.clone(), do_db_remove_ex),
         );
 
         // Reads human address from source_ptr and checks if it is valid.
@@ -255,6 +270,16 @@ where
         let instance_ptr = NonNull::from(wasmer_instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
+        let remaining_points = wasmer_instance
+            .exports
+            .get_global("wasmer_metering_remaining_points");
+        let points_exhausted = wasmer_instance
+            .exports
+            .get_global("wasmer_metering_points_exhausted");
+        env.set_global(
+            remaining_points.unwrap().clone(),
+            points_exhausted.unwrap().clone(),
+        );
         env.move_in(backend.storage, backend.querier);
         let instance = Instance {
             _inner: wasmer_instance,
@@ -265,6 +290,29 @@ where
 
     pub fn api(&self) -> &A {
         &self.env.api
+    }
+
+    pub fn commit_store(&mut self) -> VmResult<()> {
+        let binding = self.env.state_cache.borrow();
+        for (key, cache_store) in binding.iter() {
+            match cache_store.key_type {
+                KeyType::Write => {
+                    let (result, _) = self.env.with_storage_from_context::<_, _>(|store| {
+                        Ok(store.set(&key, &cache_store.value))
+                    })?;
+                    result?;
+                }
+                KeyType::Remove => {
+                    let (result, _) = self
+                        .env
+                        .with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
+                    result?;
+                }
+                KeyType::Read => (),
+            }
+        }
+        self.env.state_cache.borrow_mut().clear();
+        Ok(())
     }
 
     /// Decomposes this instance into its components.
