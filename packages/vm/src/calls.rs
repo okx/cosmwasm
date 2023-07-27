@@ -666,7 +666,8 @@ mod tests {
                 ))
             }
             err => panic!("Unexpected error: {err:?}"),
-        }
+        };
+        println!("fff {:?}", instance.get_gas_left());
     }
 
     #[test]
