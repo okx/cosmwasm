@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use rand::Rng;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime};
@@ -41,8 +42,15 @@ fn bench_instance(c: &mut Criterion) {
         b.iter(|| {
             let backend = mock_backend(&[]);
             let (instance_options, memory_limit) = mock_instance_options();
-            let _instance =
-                Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+            let _instance = Instance::from_code(
+                CONTRACT,
+                backend,
+                instance_options,
+                memory_limit,
+                0,
+                HashMap::new(),
+            )
+            .unwrap();
         });
     });
 
