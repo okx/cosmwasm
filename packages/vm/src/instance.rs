@@ -17,6 +17,7 @@ use crate::imports::{
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
+use crate::milestone::higher_than_wasm_v1;
 use crate::size::Size;
 use crate::wasm_backend::compile;
 
@@ -63,6 +64,8 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
         memory_limit: Option<Size>,
+        block_num: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let module = compile(code, memory_limit, &[])?;
         Instance::from_module(
@@ -73,6 +76,8 @@ where
             InternalCallParam::default(),
             None,
             None,
+            block_num,
+            block_milestone,
         )
     }
 
@@ -84,6 +89,8 @@ where
         param: InternalCallParam,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
+        cur_block_num: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let store = module.store();
 
@@ -91,6 +98,10 @@ where
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
+
+        if higher_than_wasm_v1(cur_block_num, block_milestone) {
+            //TODO upgrade
+        }
 
         // Reads the database entry at the given key into the the value.
         // Returns 0 if key does not exist and pointer to result region otherwise.
@@ -437,13 +448,25 @@ pub fn instance_from_module<A, S, Q>(
     gas_limit: u64,
     print_debug: bool,
     extra_imports: Option<HashMap<&str, Exports>>,
+    block_num: u64,
+    block_milestone: HashMap<String, u64>,
 ) -> VmResult<Instance<A, S, Q>>
 where
     A: BackendApi + 'static, // 'static is needed here to allow copying API instances into closures
     S: Storage + 'static, // 'static is needed here to allow using this in an Environment that is cloned into closures
     Q: Querier + 'static,
 {
-    Instance::from_module(module, backend, gas_limit, print_debug, InternalCallParam::default(), extra_imports, None)
+    Instance::from_module(
+        module,
+        backend,
+        gas_limit,
+        print_debug,
+        InternalCallParam::default(),
+        extra_imports,
+        None,
+        block_num,
+        block_milestone,
+    )
 }
 
 #[cfg(test)]
@@ -474,8 +497,15 @@ mod tests {
     fn required_capabilities_works() {
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance =
-            Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            CONTRACT,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 0);
     }
 
@@ -497,7 +527,15 @@ mod tests {
 
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance = Instance::from_code(&wasm, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            &wasm,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 3);
         assert!(instance.required_capabilities().contains("nutrients"));
         assert!(instance.required_capabilities().contains("sun"));
@@ -544,6 +582,8 @@ mod tests {
             InternalCallParam::default(),
             Some(extra_imports),
             None,
+            0,
+            HashMap::new(),
         )
         .unwrap();
 
