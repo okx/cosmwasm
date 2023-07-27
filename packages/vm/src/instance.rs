@@ -274,7 +274,7 @@ where
     }
 
     pub fn commit_store(&mut self) -> VmResult<()> {
-        let binding = self.env.state_cache.borrow();
+        let mut binding = self.env.state_cache.borrow_mut();
         for (key, cache_store) in binding.iter() {
             match cache_store.key_type {
                 KeyType::Write => {
@@ -292,7 +292,7 @@ where
                 KeyType::Read => (),
             }
         }
-        self.env.state_cache.borrow_mut().clear();
+        binding.clear();
         Ok(())
     }
 

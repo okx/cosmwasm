@@ -95,7 +95,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let b = env.state_cache.borrow();
+    let mut b = env.state_cache.borrow_mut();
     let cache = b.get(&key);
     let ret = match cache {
         Some(store_cache) => {
@@ -118,7 +118,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         None => return Ok(0),
     };
     let result = write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr);
-    env.state_cache.borrow_mut().insert(
+    b.insert(
         key,
         CacheStore {
             value: out_data,
