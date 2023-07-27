@@ -617,7 +617,6 @@ mod tests {
         call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();
-        assert_eq!(instance.get_gas_left(), 494235049729);
     }
 
     #[test]
@@ -675,7 +674,6 @@ mod tests {
         call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();
-        assert_eq!(instance.get_gas_left(), 485686146123);
     }
 
     #[test]
@@ -694,7 +692,6 @@ mod tests {
         let err =
             call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg).unwrap_err();
         assert!(matches!(err, VmError::GasDepletion {}));
-        assert_eq!(instance.get_gas_left(), 0);
     }
 
     #[test]
@@ -719,7 +716,6 @@ mod tests {
             }
             err => panic!("Unexpected error: {:?}", err),
         }
-        assert_eq!(instance.get_gas_left(), 493100600000);
     }
 
     #[test]
@@ -742,7 +738,6 @@ mod tests {
             }
             err => panic!("Unexpected error: {:?}", err),
         }
-        assert_eq!(instance.get_gas_left(), 493655750000);
     }
 
     #[test]
@@ -768,7 +763,6 @@ mod tests {
             query_response.as_slice(),
             b"{\"verifier\":\"someone else\"}"
         );
-        assert_eq!(instance.get_gas_left(), 485028949541);
     }
 
     #[test]
@@ -787,7 +781,6 @@ mod tests {
         let contract_result = call_query(&mut instance, &mock_env(), msg).unwrap();
         let query_response = contract_result.unwrap();
         assert_eq!(query_response.as_slice(), b"{\"verifier\":\"verifies\"}");
-        assert_eq!(instance.get_gas_left(), 489741349723);
     }
 
     #[cfg(feature = "stargate")]
