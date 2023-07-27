@@ -599,7 +599,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{mock_env, mock_info, mock_instance};
+    use crate::testing::{mock_env, mock_info, mock_instance, mock_instance_with_gas_limit};
     use cosmwasm_std::{coins, Empty};
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
