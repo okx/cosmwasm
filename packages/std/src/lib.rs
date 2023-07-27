@@ -7,6 +7,7 @@ mod addresses;
 mod assertions;
 mod binary;
 mod coin;
+mod coins;
 mod conversion;
 mod deps;
 mod errors;
@@ -17,12 +18,15 @@ mod import_helpers;
 #[cfg(feature = "iterator")]
 mod iterator;
 mod math;
+mod metadata;
 mod never;
+mod pagination;
 mod panic;
 mod query;
 mod results;
 mod sections;
 mod serde;
+mod serde_basic_type;
 mod storage;
 mod timestamp;
 mod traits;
@@ -31,6 +35,7 @@ mod types;
 pub use crate::addresses::{instantiate2_address, Addr, CanonicalAddr, Instantiate2AddressError};
 pub use crate::binary::Binary;
 pub use crate::coin::{coin, coins, has_coins, Coin};
+pub use crate::coins::Coins;
 pub use crate::deps::{Deps, DepsMut, OwnedDeps};
 pub use crate::errors::{
     CheckedFromRatioError, CheckedMultiplyFractionError, CheckedMultiplyRatioError,
@@ -48,10 +53,12 @@ pub use crate::ibc::{
 #[cfg(feature = "iterator")]
 pub use crate::iterator::{Order, Record};
 pub use crate::math::{
-    Decimal, Decimal256, Decimal256RangeExceeded, DecimalRangeExceeded, Fraction, Isqrt, Uint128,
-    Uint256, Uint512, Uint64,
+    Decimal, Decimal256, Decimal256RangeExceeded, DecimalRangeExceeded, Fraction, Int128, Int256,
+    Int512, Int64, Isqrt, Uint128, Uint256, Uint512, Uint64,
 };
+pub use crate::metadata::{DenomMetadata, DenomUnit};
 pub use crate::never::Never;
+pub use crate::pagination::PageRequest;
 #[cfg(feature = "cosmwasm_1_2")]
 pub use crate::query::CodeInfoResponse;
 #[cfg(feature = "cosmwasm_1_1")]
@@ -81,6 +88,9 @@ pub use crate::results::{DistributionMsg, StakingMsg};
 #[cfg(feature = "stargate")]
 pub use crate::results::{GovMsg, VoteOption};
 pub use crate::serde::{from_binary, from_slice, to_binary, to_vec};
+pub use crate::serde_basic_type::{
+    deserialize_from_bytes, serialize_to_bytes, SerializeForBasicType,
+};
 pub use crate::storage::MemoryStorage;
 pub use crate::timestamp::Timestamp;
 pub use crate::traits::{Api, Querier, QuerierResult, QuerierWrapper, Storage};
