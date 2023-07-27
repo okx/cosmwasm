@@ -4,11 +4,85 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2023-07-17
+
+### Fixed
+
+- cosmwasm-vm: Add missing cache stats increment when calling `pin`.
+
+### Added
+
+- cosmwasm-std: Implement `BankQuery::AllDenomMetadata` to allow querying all
+  the denom metadata and `BankQuery::DenomMetadata` to query a specific one. In
+  order to use this query in a contract, the `cosmwasm_1_3` feature needs to be
+  enabled for the `cosmwasm_std` dependency. This makes the contract
+  incompatible with chains running anything lower than CosmWasm `1.3.0`.
+  ([#1647])
+- cosmwasm-std: Add `DistributionQuery::DelegatorWithdrawAddress`. Also needs
+  the `cosmwasm_1_3` feature (see above). ([#1593])
+- cosmwasm-std: Add `DistributionMsg::FundCommunityPool`. Also needs the
+  `cosmwasm_1_3` feature (see above). ([#1747])
+- cosmwasm-std: Add `FromStr` impl for `Coin`. ([#1684])
+- cosmwasm-std: Add `Coins` helper to handle multiple coins. ([#1687])
+- cosmwasm-vm: Add `Cache::save_wasm_unchecked` to save Wasm blobs that have
+  been checked before. This is useful for state-sync where we know the Wasm code
+  was checked when it was first uploaded. ([#1635])
+- cosmwasm-vm: Allow sign extension Wasm opcodes in static validation. This
+  allows contracts to be compiled with Rust 1.70.0 and above. ([#1727])
+- cosmwasm-std: Add trait functions `Storage::range_keys` and
+  `Storage::range_values`. The default implementations just use
+  `Storage::range`. Later this can be implemented more efficiently. ([#1748])
+- cosmwasm-std: Add `Int64`, `Int128`, `Int256` and `Int512` signed integer
+  types. ([#1718])
+
+[#1593]: https://github.com/CosmWasm/cosmwasm/pull/1593
+[#1635]: https://github.com/CosmWasm/cosmwasm/pull/1635
+[#1647]: https://github.com/CosmWasm/cosmwasm/pull/1647
+[#1684]: https://github.com/CosmWasm/cosmwasm/pull/1684
+[#1687]: https://github.com/CosmWasm/cosmwasm/pull/1687
+[#1718]: https://github.com/CosmWasm/cosmwasm/pull/1718
+[#1727]: https://github.com/CosmWasm/cosmwasm/issues/1727
+[#1747]: https://github.com/CosmWasm/cosmwasm/pull/1747
+[#1748]: https://github.com/CosmWasm/cosmwasm/pull/1748
+
+### Changed
+
+- cosmwasm-vm: Add checks for table section of Wasm blob ([#1631]).
+- cosmwasm-vm: Limit number of imports during static validation ([#1629]).
+- cosmwasm-vm: Add target (triple + CPU features) into the module cache
+  directory to avoid using modules compiled for a different system. Bump
+  `MODULE_SERIALIZATION_VERSION` to "v6". ([#1664])
+- cosmwasm-vm: Add `.wasm` extension to stored wasm files ([#1686]).
+
+[#1629]: https://github.com/CosmWasm/cosmwasm/pull/1629
+[#1631]: https://github.com/CosmWasm/cosmwasm/pull/1631
+[#1664]: https://github.com/CosmWasm/cosmwasm/pull/1664
+[#1686]: https://github.com/CosmWasm/cosmwasm/pull/1686
+
+## [1.2.7] - 2023-06-19
+
+### Added
+
+- cosmwasm-std: Add `<<` and `<<=` implementation for `Uint{64,128,256,512}`
+  types. ([#1723])
+- cosmwasm-std: Add `Timestamp::{plus,minus}_{minutes, hours, days}`. ([#1729])
+- cosmwasm-std: Add `Decimal::bps` and `Decimal256::bps` to create a decimal
+  from a basis point value ([#1715]).
+
+[#1723]: https://github.com/CosmWasm/cosmwasm/pull/1723
+[#1729]: https://github.com/CosmWasm/cosmwasm/pull/1729
+[#1715]: https://github.com/CosmWasm/cosmwasm/pull/1715
+
+### Changed
+
+- cosmwasm-std: Coin uses shorter `Coin { 123 "ucosm" }` format for Debug
+  ([#1704])
+
+[#1704]: https://github.com/CosmWasm/cosmwasm/pull/1704
 
 ## [1.2.6] - 2023-06-05
 
-## Changed
+### Changed
 
 - cosmwasm-vm: Bumped module serialization version from v4 to v5 to invalidate
   potentially corrupted caches caused by Rust update. See
@@ -1695,7 +1769,8 @@ Some main points:
 
 All future Changelog entries will reference this base
 
-[unreleased]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.6...HEAD
+[1.3.0]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.7...v1.3.0
+[1.2.7]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.3...v1.2.4

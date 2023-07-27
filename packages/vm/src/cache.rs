@@ -159,8 +159,27 @@ where
         }
     }
 
+    /// Takes a Wasm bytecode and stores it to the cache.
+    ///
+    /// This performs static checks, compiles the bytescode to a module and
+    /// stores the Wasm file on disk.
+    ///
+    /// This does the same as [`save_wasm_unchecked`] plus the static checks.
+    /// When a Wasm blob is stored the first time, use this function.
     pub fn save_wasm(&self, wasm: &[u8]) -> VmResult<Checksum> {
         check_wasm(wasm, &self.available_capabilities)?;
+        self.save_wasm_unchecked(wasm)
+    }
+
+    /// Takes a Wasm bytecode and stores it to the cache.
+    ///
+    /// This compiles the bytescode to a module and
+    /// stores the Wasm file on disk.
+    ///
+    /// This does the same as [`save_wasm`] but without the static checks.
+    /// When a Wasm blob is stored which was previously checked (e.g. as part of state sync),
+    /// use this function.
+    pub fn save_wasm_unchecked(&self, wasm: &[u8]) -> VmResult<Checksum> {
         let module = compile(wasm, None, &[])?;
 
         let mut cache = self.inner.lock().unwrap();
@@ -253,6 +272,7 @@ where
 
         // Re-compile from original Wasm bytecode
         let code = self.load_wasm_with_path(&cache.wasm_path, checksum)?;
+        cache.stats.misses = cache.stats.misses.saturating_add(1);
         let module = compile(&code, Some(cache.instance_memory_limit), &[])?;
         // Store into the fs cache too
         cache.fs_cache.store(checksum, &module)?;
@@ -364,7 +384,7 @@ fn save_wasm_to_disk(dir: impl Into<PathBuf>, wasm: &[u8]) -> VmResult<Checksum>
     // calculate filename
     let checksum = Checksum::generate(wasm);
     let filename = checksum.to_hex();
-    let filepath = dir.into().join(filename);
+    let filepath = dir.into().join(filename).with_extension("wasm");
 
     // write data to file
     // Since the same filename (a collision resistent hash) cannot be generated from two different byte codes
@@ -382,9 +402,12 @@ fn save_wasm_to_disk(dir: impl Into<PathBuf>, wasm: &[u8]) -> VmResult<Checksum>
 
 fn load_wasm_from_disk(dir: impl Into<PathBuf>, checksum: &Checksum) -> VmResult<Vec<u8>> {
     // this requires the directory and file to exist
+    // The files previously had no extension, so to allow for a smooth transition,
+    // we also try to load the file without the wasm extension.
     let path = dir.into().join(checksum.to_hex());
-    let mut file =
-        File::open(path).map_err(|_e| VmError::cache_err("Error opening Wasm file for reading"))?;
+    let mut file = File::open(path.with_extension("wasm"))
+        .or_else(|_| File::open(path))
+        .map_err(|_e| VmError::cache_err("Error opening Wasm file for reading"))?;
 
     let mut wasm = Vec::<u8>::new();
     file.read_to_end(&mut wasm)
@@ -398,13 +421,25 @@ fn load_wasm_from_disk(dir: impl Into<PathBuf>, checksum: &Checksum) -> VmResult
 /// code is required. So a non-existent file leads to an error as it
 /// indicates a bug.
 fn remove_wasm_from_disk(dir: impl Into<PathBuf>, checksum: &Checksum) -> VmResult<()> {
+    // the files previously had no extension, so to allow for a smooth transition, we delete both
     let path = dir.into().join(checksum.to_hex());
+    let wasm_path = path.with_extension("wasm");
 
-    if !path.exists() {
+    let path_exists = path.exists();
+    let wasm_path_exists = wasm_path.exists();
+    if !path_exists && !wasm_path_exists {
         return Err(VmError::cache_err("Wasm file does not exist"));
     }
 
-    fs::remove_file(path).map_err(|_e| VmError::cache_err("Error removing Wasm file from disk"))?;
+    if path_exists {
+        fs::remove_file(path)
+            .map_err(|_e| VmError::cache_err("Error removing Wasm file from disk"))?;
+    }
+
+    if wasm_path_exists {
+        fs::remove_file(wasm_path)
+            .map_err(|_e| VmError::cache_err("Error removing Wasm file from disk"))?;
+    }
 
     Ok(())
 }
@@ -417,7 +452,7 @@ mod tests {
     use crate::errors::VmError;
     use crate::testing::{mock_backend, mock_env, mock_info, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{coins, Empty};
-    use std::fs::{create_dir_all, OpenOptions};
+    use std::fs::{create_dir_all, remove_dir_all, OpenOptions};
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -431,6 +466,14 @@ mod tests {
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
     static IBC_CONTRACT: &[u8] = include_bytes!("../testdata/ibc_reflect.wasm");
+    // Invalid because it doesn't contain required memory and exports
+    static INVALID_CONTRACT_WAT: &str = r#"(module
+        (type $t0 (func (param i32) (result i32)))
+        (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
+            get_local $p0
+            i32.const 1
+            i32.add))
+    "#;
 
     fn default_capabilities() -> HashSet<String> {
         capabilities_from_csv("iterator,staking")
@@ -489,17 +532,7 @@ mod tests {
 
     #[test]
     fn save_wasm_rejects_invalid_contract() {
-        // Invalid because it doesn't contain required memory and exports
-        let wasm = wat::parse_str(
-            r#"(module
-            (type $t0 (func (param i32) (result i32)))
-            (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
-              get_local $p0
-              i32.const 1
-              i32.add))
-            "#,
-        )
-        .unwrap();
+        let wasm = wat::parse_str(INVALID_CONTRACT_WAT).unwrap();
 
         let cache: Cache<MockApi, MockStorage, MockQuerier> =
             unsafe { Cache::new(make_testing_options()).unwrap() };
@@ -528,6 +561,22 @@ mod tests {
         assert_eq!(cache.stats().hits_memory_cache, 0);
         assert_eq!(cache.stats().hits_fs_cache, 1);
         assert_eq!(cache.stats().misses, 0);
+    }
+
+    #[test]
+    fn save_wasm_unchecked_works() {
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(make_testing_options()).unwrap() };
+        cache.save_wasm_unchecked(CONTRACT).unwrap();
+    }
+
+    #[test]
+    fn save_wasm_unchecked_accepts_invalid_contract() {
+        let wasm = wat::parse_str(INVALID_CONTRACT_WAT).unwrap();
+
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(make_testing_options()).unwrap() };
+        cache.save_wasm_unchecked(&wasm).unwrap();
     }
 
     #[test]
@@ -606,7 +655,8 @@ mod tests {
             .path()
             .join(STATE_DIR)
             .join(WASM_DIR)
-            .join(checksum.to_hex());
+            .join(checksum.to_hex())
+            .with_extension("wasm");
         let mut file = OpenOptions::new().write(true).open(filepath).unwrap();
         file.write_all(b"broken data").unwrap();
 
@@ -724,6 +774,36 @@ mod tests {
         assert_eq!(cache.stats().hits_memory_cache, 3);
         assert_eq!(cache.stats().hits_fs_cache, 1);
         assert_eq!(cache.stats().misses, 0);
+    }
+
+    #[test]
+    fn get_instance_recompiles_module() {
+        let options = make_testing_options();
+        let cache = unsafe { Cache::new(options.clone()).unwrap() };
+        let checksum = cache.save_wasm(CONTRACT).unwrap();
+
+        // Remove compiled module from disk
+        remove_dir_all(options.base_dir.join(CACHE_DIR).join(MODULES_DIR)).unwrap();
+
+        // The first get_instance recompiles the Wasm (miss)
+        let backend = mock_backend(&[]);
+        let _instance = cache
+            .get_instance(&checksum, backend, TESTING_OPTIONS)
+            .unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
+
+        // The second get_instance finds the module in cache (hit)
+        let backend = mock_backend(&[]);
+        let _instance = cache
+            .get_instance(&checksum, backend, TESTING_OPTIONS)
+            .unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
+        assert_eq!(cache.stats().hits_memory_cache, 1);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
     }
 
     #[test]
@@ -1168,5 +1248,60 @@ mod tests {
         // unpin non existent id has no effect
         let non_id = Checksum::generate(b"non_existent");
         cache.unpin(&non_id).unwrap();
+    }
+
+    #[test]
+    fn pin_recompiles_module() {
+        let options = make_testing_options();
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(options.clone()).unwrap() };
+        let checksum = cache.save_wasm(CONTRACT).unwrap();
+
+        // Remove compiled module from disk
+        remove_dir_all(options.base_dir.join(CACHE_DIR).join(MODULES_DIR)).unwrap();
+
+        // Pin misses, forcing a re-compile of the module
+        cache.pin(&checksum).unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
+
+        // After the compilation in pin, the module can be used from pinned memory cache
+        let backend = mock_backend(&[]);
+        let _ = cache
+            .get_instance(&checksum, backend, TESTING_OPTIONS)
+            .unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
+    }
+
+    #[test]
+    fn loading_without_extension_works() {
+        let tmp_dir = TempDir::new().unwrap();
+        let options = CacheOptions {
+            base_dir: tmp_dir.path().to_path_buf(),
+            available_capabilities: default_capabilities(),
+            memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
+            instance_memory_limit: TESTING_MEMORY_LIMIT,
+        };
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(options).unwrap() };
+        let checksum = cache.save_wasm(CONTRACT).unwrap();
+
+        // Move the saved wasm to the old path (without extension)
+        let old_path = tmp_dir
+            .path()
+            .join(STATE_DIR)
+            .join(WASM_DIR)
+            .join(checksum.to_hex());
+        let new_path = old_path.with_extension("wasm");
+        fs::rename(new_path, old_path).unwrap();
+
+        // loading wasm from before the wasm extension was added should still work
+        let restored = cache.load_wasm(&checksum).unwrap();
+        assert_eq!(restored, CONTRACT);
     }
 }
