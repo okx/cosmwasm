@@ -3,10 +3,10 @@ use serde::de::DeserializeOwned;
 use cosmwasm_std::testing::{MockQuerier as StdMockQuerier, MockQuerierCustomHandlerResult};
 use cosmwasm_std::{
     to_binary, to_vec, Binary, Coin, ContractResult, CustomQuery, Empty, Querier as _,
-    QueryRequest, SystemError, SystemResult, MessageInfo, Env, Addr,
+    QueryRequest, SystemError, SystemResult,
 };
 
-use crate::{BackendError, BackendResult, GasInfo, Querier, backend, BackendApi, Environment, VmError, VmResult};
+use crate::{BackendError, BackendResult, GasInfo, Querier};
 
 const GAS_COST_QUERY_FLAT: u64 = 100_000;
 /// Gas per request byte
@@ -83,68 +83,6 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
 
         // We don't use FFI in the mock implementation, so BackendResult is always Ok() regardless of error on other levels
         (Ok(response), gas_info)
-    }
-
-    fn call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, _env: &Environment<A, S, Q>,
-                                                                 contract_address: String,
-                                                                 info: &MessageInfo,
-                                                                 _call_msg: &[u8],
-                                                                 block_env: &Env,
-                                                                 gas_limit: u64
-    ) -> (VmResult<Vec<u8>>, GasInfo) {
-        let gas_info = GasInfo::new(100, 100);
-        // for test error case
-        if contract_address == String::from("contract_backend_err") {
-            return (Err(VmError::backend_err(BackendError::user_err("test user err"))), gas_info)
-        }
-        // check the MessageInfo
-        if contract_address != String::from("contract2") {
-            return (Err(VmError::generic_err("invalid contract_address")), gas_info)
-        }
-
-        if info.sender != Addr::unchecked(String::from("contract1")) {
-            return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
-        }
-        if block_env.contract.address != String::from("contract2") {
-            return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
-        }
-        if gas_info.externally_used > gas_limit {
-           return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
-        }
-        let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
-        (Ok(res.into_bytes()), gas_info)
-    }
-    fn delegate_call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, _env: &Environment<A, S, Q>,
-                                                                      contract_address: String,
-                                                                      info: &MessageInfo,
-                                                                      _call_msg: &[u8],
-                                                                      block_env: &Env,
-                                                                      gas_limit: u64
-    ) -> (VmResult<Vec<u8>>, GasInfo) {
-        let gas_info = GasInfo::new(100, 100);
-        // for test error case
-        if contract_address == String::from("contract_backend_err") {
-            return (Err(VmError::backend_err(BackendError::user_err("test user err"))), gas_info)
-        }
-        // check the MessageInfo
-        if contract_address != String::from("contract2") {
-            return (Err(VmError::generic_err("invalid contract_address")), gas_info)
-        }
-        if info.sender != Addr::unchecked(String::from("sender1")) {
-            return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
-        }
-        if block_env.contract.address != String::from("contract1") {
-            return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
-        }
-        if gas_info.externally_used > gas_limit {
-            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
-        }
-
-        if gas_info.externally_used > gas_limit {
-            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
-        }
-        let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
-        (Ok(res.into_bytes()), gas_info)
     }
 }
 

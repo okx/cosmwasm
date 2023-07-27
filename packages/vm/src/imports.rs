@@ -480,19 +480,9 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
     benv.contract.address = Addr::unchecked(contract_address.clone());
 
     let gas_left = env.get_gas_left();
-    let (result, gas_info) = env.with_querier_from_context::<_, _>(|querier| {
-        Ok(querier.call(env,
-                                      contract_address.clone(),
-                                      &info,
-                                      call_msg.as_slice(),
-                                      &benv,
-            gas_left
 
-        ))
-    })?;
-
+    let (result, gas_info) = env.api.call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left);
     process_gas_info::<A, S, Q>(env, gas_info)?;
-
     match result {
         Ok(data) => {
             write_region(&env.memory(), destination_ptr, data.as_slice())?;
@@ -534,19 +524,9 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
         funds: vcoin.to_vec()};
 
     let gas_left = env.get_gas_left();
-    let (result, gas_info) = env.with_querier_from_context::<_, _>(|querier| {
-        Ok(querier.delegate_call(env,
-                                 contract_address.clone(),
-                                      &info,
-                                      call_msg.as_slice(),
-                                      &benv,
-            gas_left
 
-        ))
-    })?;
-
+    let (result, gas_info) = env.api.delegate_call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left);
     process_gas_info::<A, S, Q>(env, gas_info)?;
-
     match result {
         Ok(data) => {
             write_region(&env.memory(), destination_ptr, data.as_slice())?;

@@ -134,6 +134,20 @@ pub trait Storage {
 pub trait BackendApi: Copy + Clone + Send {
     fn canonical_address(&self, human: &str) -> BackendResult<Vec<u8>>;
     fn human_address(&self, canonical: &[u8]) -> BackendResult<String>;
+    fn call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+                                                   contract_address: String,
+                                                   info: &MessageInfo,
+                                                   call_msg: &[u8],
+                                                   block_env: &Env,
+                                                   gas_limit: u64
+    ) -> (VmResult<Vec<u8>>, GasInfo);
+    fn delegate_call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
+                                                            contract_address: String,
+                                                            info: &MessageInfo,
+                                                            call_msg: &[u8],
+                                                            block_env: &Env,
+                                                            gas_limit: u64
+    ) -> (VmResult<Vec<u8>>, GasInfo);
 }
 
 pub trait Querier {
@@ -151,20 +165,6 @@ pub trait Querier {
         request: &[u8],
         gas_limit: u64,
     ) -> BackendResult<SystemResult<ContractResult<Binary>>>;
-    fn call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
-                                                                 contract_address: String,
-                                                                 info: &MessageInfo,
-                                                                 call_msg: &[u8],
-                                                                 block_env: &Env,
-                                                                 gas_limit: u64
-    ) -> (VmResult<Vec<u8>>, GasInfo);
-    fn delegate_call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
-                                                                      contract_address: String,
-                                                                      info: &MessageInfo,
-                                                                      call_msg: &[u8],
-                                                                      block_env: &Env,
-                                                                      gas_limit: u64
-    ) -> (VmResult<Vec<u8>>, GasInfo);
 }
 
 /// A result type for calling into the backend. Such a call can cause
