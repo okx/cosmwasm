@@ -259,10 +259,8 @@ where
         let points_exhausted = wasmer_instance
             .exports
             .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
-            remaining_points.unwrap().clone(),
-            points_exhausted.unwrap().clone(),
-        );
+        env.move_in_global(remaining_points.unwrap().clone(),
+                           points_exhausted.unwrap().clone());
         env.move_in(backend.storage, backend.querier);
         let instance = Instance {
             _inner: wasmer_instance,
