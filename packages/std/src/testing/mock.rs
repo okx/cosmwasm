@@ -1361,7 +1361,7 @@ mod tests {
                 time: Timestamp::from_nanos(1_688_109_643_006_501_000),
                 chain_id: "exchain-67".to_string(),
             },
-            transaction: Some(TransactionInfo { index: 0 }),
+            transaction_info: Some(TransactionInfo { index: 0 }),
             contract: ContractInfo {
                 address: Addr::unchecked(String::from("contract1")),
             },
@@ -1385,7 +1385,7 @@ mod tests {
                 time: Timestamp::from_nanos(1_688_109_643_006_501_000),
                 chain_id: "exchain-67".to_string(),
             },
-            transaction: Some(TransactionInfo { index: 0 }),
+            transaction_info: Some(TransactionInfo { index: 0 }),
             contract: ContractInfo {
                 address: Addr::unchecked(String::from("contract1")),
             },
@@ -1407,7 +1407,7 @@ mod tests {
                 time: Timestamp::from_nanos(1_688_109_643_006_501_000),
                 chain_id: "exchain-67".to_string(),
             },
-            transaction: Some(TransactionInfo { index: 0 }),
+            transaction_info: Some(TransactionInfo { index: 0 }),
             contract: ContractInfo {
                 address: Addr::unchecked(String::from("contract1")),
             },
@@ -1431,7 +1431,7 @@ mod tests {
                 time: Timestamp::from_nanos(1_688_109_643_006_501_000),
                 chain_id: "exchain-67".to_string(),
             },
-            transaction: Some(TransactionInfo { index: 0 }),
+            transaction_info: Some(TransactionInfo { index: 0 }),
             contract: ContractInfo {
                 address: Addr::unchecked(String::from("contract1")),
             },
