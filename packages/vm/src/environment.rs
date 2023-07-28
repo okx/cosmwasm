@@ -1,13 +1,16 @@
 //! Internal details to be used by instance.rs only
 use std::borrow::{Borrow, BorrowMut};
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 use wasmer::{Global, HostEnvInitError, Instance as WasmerInstance, Memory, Val, WasmerEnv};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
+use cosmwasm_std::Addr;
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
 use crate::errors::{VmError, VmResult};
@@ -102,8 +105,27 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub api: A,
     pub print_debug: bool,
     pub gas_config: GasConfig,
+    pub call_depth: u32,
+    pub sender_addr: Addr,            // used for delegate call
+    pub delegate_contract_addr: Addr, // used for delegate call
     data: Arc<RwLock<ContextData<S, Q>>>,
     pub state_cache: RefCell<BTreeMap<Vec<u8>, CacheStore>>,
+}
+
+pub struct InternalCallParam {
+    pub call_depth: u32,
+    pub sender_addr: Addr,            // used for delegate call
+    pub delegate_contract_addr: Addr, // used for delegate call
+}
+
+impl Default for InternalCallParam {
+    fn default() -> Self {
+        InternalCallParam {
+            call_depth: 1,
+            sender_addr: Addr::unchecked(""),
+            delegate_contract_addr: Addr::unchecked("")
+        }
+    }
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -116,6 +138,9 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             api: self.api,
             print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
+            call_depth: self.call_depth,
+            sender_addr: self.sender_addr.clone(),
+            delegate_contract_addr: self.delegate_contract_addr.clone(),
             data: self.data.clone(),
             state_cache: self.state_cache.clone(),
         }
@@ -134,6 +159,22 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             api,
             print_debug,
             gas_config: GasConfig::default(),
+            call_depth: 1,
+            sender_addr: Addr::unchecked(""),
+            delegate_contract_addr: Addr::unchecked(""),
+            data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
+            state_cache: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam) -> Self {
+        Environment {
+            api,
+            print_debug,
+            gas_config: GasConfig::default(),
+            call_depth: param.call_depth,
+            sender_addr: param.sender_addr,
+            delegate_contract_addr: param.delegate_contract_addr,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
             state_cache: RefCell::new(BTreeMap::new()),
         }
@@ -309,10 +350,18 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
+
     pub fn set_gas_left_ex(&self, remain_points: &Rc<Global>, new_limit: u64) {
         remain_points.set(new_limit.into())
             .expect("Can't set `wasmer_metering_remaining_points` in Instance");
     }
+    pub fn get_externally_used_gas(&self) -> u64 {
+        let externally_used_gas= self.with_gas_state_mut(|gas_state| {
+            gas_state.externally_used_gas
+        });
+        externally_used_gas
+    }
+
 
     pub fn set_gas_left(&self, new_value: u64) {
         self.with_wasmer_instance(|instance| {
@@ -383,6 +432,16 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         self.with_context_data_mut(|context_data| {
             (context_data.storage.take(), context_data.querier.take())
         })
+    }
+
+    // for ut
+    pub fn set_sender_addr(&mut self, addr: Addr) {
+        self.sender_addr = addr
+    }
+
+    // for ut
+    pub fn set_delegate_contract_addr(&mut self, addr: Addr) {
+        self.delegate_contract_addr = addr
     }
 }
 
@@ -497,6 +556,8 @@ mod tests {
                 "secp256k1_recover_pubkey" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u64 { 0 }),
                 "ed25519_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "ed25519_batch_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "delegate_call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_native(store, |_a: u32| {}),
                 "abort" => Function::new_native(store, |_a: u32| {}),
                 "new_contract" => Function::new_native(store, |_a: u32, _b: u32| -> u32 { 0 }),

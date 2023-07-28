@@ -1,5 +1,6 @@
 //! Import implementations
 
+use std::borrow::Borrow;
 use std::cmp::max;
 
 use cosmwasm_crypto::{
@@ -8,6 +9,7 @@ use cosmwasm_crypto::{
 use cosmwasm_crypto::{
     ECDSA_PUBKEY_MAX_LEN, ECDSA_SIGNATURE_LEN, EDDSA_PUBKEY_LEN, MESSAGE_HASH_MAX_LEN,
 };
+use cosmwasm_std::{Addr, Env};
 
 #[cfg(feature = "iterator")]
 use cosmwasm_std::Order;
@@ -23,7 +25,8 @@ use crate::sections::decode_sections;
 #[allow(unused_imports)]
 use crate::sections::encode_sections;
 use crate::serde::to_vec;
-use crate::GasInfo;
+use crate::{from_slice, GasInfo};
+use cosmwasm_std::{WasmMsg, MessageInfo};
 
 /// A kibi (kilo binary)
 const KI: usize = 1024;
@@ -56,6 +59,15 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
+
+/// max length call data
+const MAX_LENGTH_CALL_DATA: usize = 64 * KI;
+
+///  max length blockchain env
+const MAX_LENGTH_ENV: usize = 64 * KI;
+
+/// max call depth
+const MAX_CALL_DEPTH: u32 = 20;
 
 /// Max length for a create contract message
 const MAX_LENGTH_NEW_CONTRACT_REQUEST: usize = 2 * MI;
@@ -584,6 +596,98 @@ pub fn do_query_chain<A: BackendApi, S: Storage, Q: Querier>(
     write_to_contract::<A, S, Q>(env, &serialized)
 }
 
+pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    env_ptr: u32,
+    msg_ptr: u32,
+    destination_ptr: u32,
+) -> VmResult<u32> {
+    if env.call_depth + 1 > MAX_CALL_DEPTH {
+        return write_to_contract::<A, S, Q>(env, b"more than the max call depth");
+    }
+
+    let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
+    let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
+
+    let mut benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
+    let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
+
+    let (call_msg,contract_address, vcoin) = {
+        if let WasmMsg::Execute { contract_addr, msg, funds} = calld {
+            (msg, contract_addr, funds)
+        } else {
+            return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
+        }
+    };
+
+    let info = MessageInfo{
+        sender: benv.contract.address.clone(), // the do_call function sender is the caller contract address
+        funds: vcoin.to_vec()
+    };
+
+    // update the benv the contract address for the callee contract address
+    benv.contract.address = Addr::unchecked(contract_address.clone());
+
+    let gas_left = env.get_gas_left();
+
+    let (result, gas_info) = env.api.call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left);
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+    match result {
+        Ok(data) => {
+            write_region(&env.memory(), destination_ptr, data.as_slice())?;
+            Ok(0)
+        }
+        Err(VmError::BackendErr{ source:BackendError::UserErr { msg }, ..}) => {
+            Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        }
+        Err(err) => Err(VmError::from(err)),
+    }
+}
+
+pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
+    env: &Environment<A, S, Q>,
+    env_ptr: u32,
+    msg_ptr: u32,
+    destination_ptr: u32,
+) -> VmResult<u32> {
+    if env.call_depth + 1 > MAX_CALL_DEPTH {
+        return write_to_contract::<A, S, Q>(env, b"more than the max call depth");
+    }
+
+    let benv_data = read_region(&env.memory(), env_ptr, MAX_LENGTH_ENV)?;
+    let call_data = read_region(&env.memory(), msg_ptr, MAX_LENGTH_CALL_DATA)?;
+
+    let benv: Env = from_slice(benv_data.borrow(), MAX_LENGTH_ENV)?;
+    let calld: WasmMsg = from_slice(call_data.borrow(), MAX_LENGTH_CALL_DATA)?;
+
+    let (call_msg,contract_address, vcoin) = {
+        if let WasmMsg::Execute { contract_addr, msg, funds} = calld {
+            (msg, contract_addr, funds)
+        } else {
+            return write_to_contract::<A, S, Q>(env, b"parse not WasmMsg::Execute");
+        }
+    };
+
+    let info = MessageInfo{
+        sender: env.sender_addr.clone(),
+        funds: vcoin.to_vec()};
+
+    let gas_left = env.get_gas_left();
+
+    let (result, gas_info) = env.api.delegate_call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left);
+    process_gas_info::<A, S, Q>(env, gas_info)?;
+    match result {
+        Ok(data) => {
+            write_region(&env.memory(), destination_ptr, data.as_slice())?;
+            Ok(0)
+        }
+        Err(VmError::BackendErr{ source:BackendError::UserErr { msg }, ..}) => {
+            Ok(write_to_contract::<A, S, Q>(env, msg.as_bytes())?)
+        }
+        Err(err) => Err(VmError::from(err)),
+    }
+}
+
 #[cfg(feature = "iterator")]
 pub fn do_db_scan<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
@@ -646,10 +750,11 @@ mod tests {
     use super::*;
     use cosmwasm_std::{
         coins, from_binary, AllBalanceResponse, BankQuery, Binary, Empty, QueryRequest,
-        SystemError, SystemResult, WasmQuery,
+        SystemError, SystemResult, WasmQuery, BlockInfo, Timestamp, TransactionInfo, ContractInfo,
     };
     use hex_literal::hex;
     use std::ptr::NonNull;
+    use std::string::String;
     use wasmer::{imports, Function, Instance as WasmerInstance};
 
     use crate::backend::{BackendError, Storage};
@@ -709,6 +814,8 @@ mod tests {
                 "secp256k1_recover_pubkey" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u64 { 0 }),
                 "ed25519_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "ed25519_batch_verify" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "delegate_call" => Function::new_native(store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_native(store, |_a: u32| {}),
                 "abort" => Function::new_native(store, |_a: u32| {}),
                 "new_contract" => Function::new_native(store, |_a: u32, _b: u32| -> u32 { 0 }),
@@ -1942,6 +2049,274 @@ mod tests {
             }
             SystemResult::Err(err) => panic!("Unexpected error: {:?}", err),
         }
+    }
+
+    #[test]
+    fn do_call_works() {
+        let mock_result =String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
+        let api = MockApi::default();
+        let (env, mut instance) = make_instance(api);
+
+        // use the contract1 call contract2
+        let benv = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction_info: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let benv_data = cosmwasm_std::to_vec(&benv).unwrap();
+        let benv_ptr = write_data(&env, &benv_data);
+
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+
+        let dest_ptr = create_empty(&mut instance, 1024);
+
+        leave_default_data(&env);
+
+        let result = do_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_eq!(result, 0);
+        let result = force_read(&env, dest_ptr);
+        assert_eq!(result, mock_result.into_bytes());
+    }
+
+    #[test]
+    fn do_call_errors() {
+        let api = MockApi::default();
+        let (mut env, mut instance) = make_instance(api);
+
+        // use the contract1 call contract2
+        let benv = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction_info: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let benv_data = cosmwasm_std::to_vec(&benv).unwrap();
+        let benv_ptr = write_data(&env, &benv_data);
+
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+
+        let dest_ptr = create_empty(&mut instance, 1024);
+
+        leave_default_data(&env);
+
+        // 1. the call_depth is too large
+        env.call_depth = 1024;
+        let result = do_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        //println!("{:?}", String::from_utf8(result));
+        assert_eq!(result, String::from("more than the max call depth").into_bytes());
+
+        // 2. the msg is not WasmMsg::Execute
+        env.call_depth = 1;
+        let err_msg = WasmMsg::UpdateAdmin {
+            contract_addr: String::from("contract2"),
+            admin: String::from("admin1")
+        };
+        let err_msg_ptr = write_data(&env, &cosmwasm_std::to_vec(&err_msg).unwrap());
+        let result = do_call(&env, benv_ptr, err_msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        assert_eq!(result, String::from("parse not WasmMsg::Execute").into_bytes());
+
+        // 3. gas too large
+        env.set_gas_left(90);
+        let result = do_call(&env, benv_ptr, msg_ptr, dest_ptr) ;
+        //assert_eq!(result, VmError::GasDepletion);
+        match result.unwrap_err() {
+             VmError::GasDepletion { .. } => {}
+             err => panic!("Incorrect error returned: {:?}", err),
+        }
+
+        // 4. invalid contract address
+        env.set_gas_left(1000000000000);
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract3"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+        let result = do_call(&env, benv_ptr, msg_ptr, dest_ptr) ;
+        match result.unwrap_err() {
+            VmError::GenericErr {
+                msg: message,
+                ..
+            } => assert_eq!(message, "invalid contract_address"),
+            e => panic!("Unexpected error: {:?}", e),
+        }
+
+        // 5. test for user err
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract_backend_err"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+        let result = do_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        assert_eq!(result, String::from("test user err").into_bytes());
+    }
+
+    #[test]
+    fn do_delegate_call_works() {
+        let mock_result =String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
+        let api = MockApi::default();
+        let (mut env, mut instance) = make_instance(api);
+
+        env.sender_addr = Addr::unchecked(String::from("sender1"));
+        // the contract0 is the original delegate address
+        env.delegate_contract_addr = Addr::unchecked(String::from("contract0"));
+
+        // use the contract1 call contract2
+        let benv = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction_info: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let benv_data = cosmwasm_std::to_vec(&benv).unwrap();
+        let benv_ptr = write_data(&env, &benv_data);
+
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+
+        let dest_ptr = create_empty(&mut instance, 1024);
+
+        leave_default_data(&env);
+
+        let result = do_delegate_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_eq!(result, 0);
+        let result = force_read(&env, dest_ptr);
+        assert_eq!(result, mock_result.into_bytes());
+    }
+
+    #[test]
+    fn do_delegate_call_errors() {
+        let api = MockApi::default();
+        let (mut env, mut instance) = make_instance(api);
+
+        // use the contract1 call contract2
+        let benv = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction_info: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let benv_data = cosmwasm_std::to_vec(&benv).unwrap();
+        let benv_ptr = write_data(&env, &benv_data);
+
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+
+        let dest_ptr = create_empty(&mut instance, 1024);
+
+        leave_default_data(&env);
+
+        // 1. the call_depth is too large
+        env.call_depth = 1024;
+        let result = do_delegate_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        //println!("{:?}", String::from_utf8(result));
+        assert_eq!(result, String::from("more than the max call depth").into_bytes());
+
+        // 2. the msg is not WasmMsg::Execute
+        env.call_depth = 1;
+        let err_msg = WasmMsg::UpdateAdmin {
+            contract_addr: String::from("contract2"),
+            admin: String::from("admin1")
+        };
+        let err_msg_ptr = write_data(&env, &cosmwasm_std::to_vec(&err_msg).unwrap());
+        let result = do_delegate_call(&env, benv_ptr, err_msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        assert_eq!(result, String::from("parse not WasmMsg::Execute").into_bytes());
+
+        // 3. gas too large
+        env.set_gas_left(90);
+        let result = do_delegate_call(&env, benv_ptr, msg_ptr, dest_ptr) ;
+        //assert_eq!(result, VmError::GasDepletion);
+        match result.unwrap_err() {
+            VmError::GasDepletion { .. } => {}
+            err => panic!("Incorrect error returned: {:?}", err),
+        }
+
+        // 4. invalid contract address
+        env.set_gas_left(1000000000000);
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract3"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+        let result = do_delegate_call(&env, benv_ptr, msg_ptr, dest_ptr) ;
+        match result.unwrap_err() {
+            VmError::GenericErr {
+                msg: message,
+                ..
+            } => assert_eq!(message, "invalid contract_address"),
+            e => panic!("Unexpected error: {:?}", e),
+        }
+
+        // 5. test for user err
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract_backend_err"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let msg_data = cosmwasm_std::to_vec(&msg).unwrap();
+        let msg_ptr = write_data(&env, &msg_data);
+        let result = do_delegate_call(&env, benv_ptr, msg_ptr, dest_ptr).unwrap();
+        assert_ne!(result, 0);
+        let result = force_read(&env, result);
+        assert_eq!(result, String::from("test user err").into_bytes());
     }
 
     #[test]
