@@ -523,6 +523,10 @@ mod tests {
     const TESTING_OPTIONS: InstanceOptions = InstanceOptions {
         gas_limit: TESTING_GAS_LIMIT,
         print_debug: false,
+        write_cost_flat: 2000,
+        write_cost_per_byte: 30,
+        delete_cost: 1000,
+        gas_mul: 38000000,
     };
     const TESTING_MEMORY_CACHE_SIZE: Size = Size::mebi(200);
 
@@ -1128,6 +1132,10 @@ mod tests {
         let options = InstanceOptions {
             gas_limit: 10,
             print_debug: false,
+            write_cost_flat: 2000,
+            write_cost_per_byte: 30,
+            delete_cost: 1000,
+            gas_mul: 38000000,
         };
         let mut instance1 = cache.get_instance(&checksum, backend1, options).unwrap();
         assert_eq!(cache.stats().hits_fs_cache, 1);
@@ -1148,6 +1156,10 @@ mod tests {
         let options = InstanceOptions {
             gas_limit: TESTING_GAS_LIMIT,
             print_debug: false,
+            write_cost_flat: 2000,
+            write_cost_per_byte: 30,
+            delete_cost: 1000,
+            gas_mul: 38000000,
         };
         let mut instance2 = cache.get_instance(&checksum, backend2, options).unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 0);

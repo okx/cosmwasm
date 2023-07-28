@@ -754,6 +754,7 @@ mod tests {
     use wasmer::{imports, Function, Instance as WasmerInstance};
 
     use crate::backend::{BackendError, Storage};
+    use crate::environment::GasConfigInfo;
     use crate::size::Size;
     use crate::testing::{MockApi, MockQuerier, MockStorage};
     use crate::wasm_backend::compile;
@@ -790,7 +791,7 @@ mod tests {
         Box<WasmerInstance>,
     ) {
         let gas_limit = TESTING_GAS_LIMIT;
-        let env = Environment::new(api, gas_limit, false);
+        let env = Environment::new(api, gas_limit, false, GasConfigInfo::default());
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();
