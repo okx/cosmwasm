@@ -90,7 +90,7 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let env = Environment::new(backend.api, gas_limit, print_debug);
+        let env = Environment::new_ex(backend.api, gas_limit, print_debug, param);
 
 
         let mut import_obj = ImportObject::new();
