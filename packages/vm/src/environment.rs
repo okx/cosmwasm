@@ -8,9 +8,9 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
+use cosmwasm_std::Addr;
 use wasmer::{Global, HostEnvInitError, Instance as WasmerInstance, Memory, Val, WasmerEnv};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
-use cosmwasm_std::Addr;
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
 use crate::errors::{VmError, VmResult};
@@ -123,7 +123,7 @@ impl Default for InternalCallParam {
         InternalCallParam {
             call_depth: 1,
             sender_addr: Addr::unchecked(""),
-            delegate_contract_addr: Addr::unchecked("")
+            delegate_contract_addr: Addr::unchecked(""),
         }
     }
 }
@@ -350,18 +350,16 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-
     pub fn set_gas_left_ex(&self, remain_points: &Rc<Global>, new_limit: u64) {
-        remain_points.set(new_limit.into())
+        remain_points
+            .set(new_limit.into())
             .expect("Can't set `wasmer_metering_remaining_points` in Instance");
     }
     pub fn get_externally_used_gas(&self) -> u64 {
-        let externally_used_gas= self.with_gas_state_mut(|gas_state| {
-            gas_state.externally_used_gas
-        });
+        let externally_used_gas =
+            self.with_gas_state_mut(|gas_state| gas_state.externally_used_gas);
         externally_used_gas
     }
-
 
     pub fn set_gas_left(&self, new_value: u64) {
         self.with_wasmer_instance(|instance| {
@@ -571,10 +569,14 @@ mod tests {
         env.move_in_global(
             instance
                 .exports
-                .get_global("wasmer_metering_remaining_points").unwrap().clone(),
+                .get_global("wasmer_metering_remaining_points")
+                .unwrap()
+                .clone(),
             instance
                 .exports
-                .get_global("wasmer_metering_points_exhausted").unwrap().clone(),
+                .get_global("wasmer_metering_points_exhausted")
+                .unwrap()
+                .clone(),
         );
 
         (env, instance)

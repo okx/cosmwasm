@@ -1,10 +1,16 @@
 use cosmwasm_std::testing::{digit_sum, riffle_shuffle};
-use cosmwasm_std::{Addr, BlockInfo, Coin, ContractCreate, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo, Binary};
+use cosmwasm_std::{
+    Addr, BlockInfo, Coin, ContractCreate, ContractInfo, Env, MessageInfo, Timestamp,
+    TransactionInfo,
+};
 
 use super::querier::MockQuerier;
 use super::storage::MockStorage;
-use crate::{Backend, backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier, VmError, VmResult};
-use crate::serde::{to_vec, from_slice};
+use crate::serde::from_slice;
+use crate::{
+    backend, Backend, BackendApi, BackendError, BackendResult, Environment, GasInfo, Querier,
+    VmError, VmResult,
+};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 const GAS_COST_HUMANIZE: u64 = 44;
@@ -156,70 +162,110 @@ impl BackendApi for MockApi {
         (result, gas_info)
     }
 
-
-    fn call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, _env: &Environment<A, S, Q>,
-                                                            contract_address: String,
-                                                            info: &MessageInfo,
-                                                            _call_msg: &[u8],
-                                                            block_env: &Env,
-                                                            gas_limit: u64
+    fn call<A: BackendApi, S: backend::Storage, Q: Querier>(
+        &self,
+        _env: &Environment<A, S, Q>,
+        contract_address: String,
+        info: &MessageInfo,
+        _call_msg: &[u8],
+        block_env: &Env,
+        gas_limit: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo) {
         let gas_info = GasInfo::new(100, 100);
         // for test error case
         if contract_address == String::from("contract_backend_err") {
-            return (Err(VmError::backend_err(BackendError::user_err("test user err"))), gas_info)
+            return (
+                Err(VmError::backend_err(BackendError::user_err(
+                    "test user err",
+                ))),
+                gas_info,
+            );
         }
         // check the MessageInfo
         if contract_address != String::from("contract2") {
-            return (Err(VmError::generic_err("invalid contract_address")), gas_info)
+            return (
+                Err(VmError::generic_err("invalid contract_address")),
+                gas_info,
+            );
         }
 
         if info.sender != Addr::unchecked(String::from("contract1")) {
-            return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
+            return (
+                Err(VmError::generic_err("invalid MessageInfo sender")),
+                gas_info,
+            );
         }
         if block_env.contract.address != String::from("contract2") {
-            return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
+            return (
+                Err(VmError::generic_err("invalid block_env contract address")),
+                gas_info,
+            );
         }
         if gas_info.externally_used > gas_limit {
-            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
+            return (
+                Err(VmError::backend_err(BackendError::out_of_gas())),
+                gas_info,
+            );
         }
         let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
         (Ok(res.into_bytes()), gas_info)
     }
 
-    fn delegate_call<A: BackendApi, S: backend::Storage, Q: Querier>(&self, _env: &Environment<A, S, Q>,
-                                                                     contract_address: String,
-                                                                     info: &MessageInfo,
-                                                                     _call_msg: &[u8],
-                                                                     block_env: &Env,
-                                                                     gas_limit: u64
+    fn delegate_call<A: BackendApi, S: backend::Storage, Q: Querier>(
+        &self,
+        _env: &Environment<A, S, Q>,
+        contract_address: String,
+        info: &MessageInfo,
+        _call_msg: &[u8],
+        block_env: &Env,
+        gas_limit: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo) {
         let gas_info = GasInfo::new(100, 100);
         // for test error case
         if contract_address == String::from("contract_backend_err") {
-            return (Err(VmError::backend_err(BackendError::user_err("test user err"))), gas_info)
+            return (
+                Err(VmError::backend_err(BackendError::user_err(
+                    "test user err",
+                ))),
+                gas_info,
+            );
         }
         // check the MessageInfo
         if contract_address != String::from("contract2") {
-            return (Err(VmError::generic_err("invalid contract_address")), gas_info)
+            return (
+                Err(VmError::generic_err("invalid contract_address")),
+                gas_info,
+            );
         }
         if info.sender != Addr::unchecked(String::from("sender1")) {
-            return (Err(VmError::generic_err("invalid MessageInfo sender")), gas_info)
+            return (
+                Err(VmError::generic_err("invalid MessageInfo sender")),
+                gas_info,
+            );
         }
         if block_env.contract.address != String::from("contract1") {
-            return (Err(VmError::generic_err("invalid block_env contract address")), gas_info)
+            return (
+                Err(VmError::generic_err("invalid block_env contract address")),
+                gas_info,
+            );
         }
         if gas_info.externally_used > gas_limit {
-            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
+            return (
+                Err(VmError::backend_err(BackendError::out_of_gas())),
+                gas_info,
+            );
         }
 
         if gas_info.externally_used > gas_limit {
-            return (Err(VmError::backend_err(BackendError::out_of_gas())), gas_info);
+            return (
+                Err(VmError::backend_err(BackendError::out_of_gas())),
+                gas_info,
+            );
         }
         let res = String::from("{\"ok\":{\"messages\":[],\"attributes\":[{\"key\":\"Added\",\"value\":\"592\"},{\"key\":\"Changed\",\"value\":\"592\"}],\"events\":[],\"data\":null}}");
         (Ok(res.into_bytes()), gas_info)
-  }
-      
+    }
+
     fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String> {
         let gas_info = GasInfo::with_externally_used(GAS_COST_CREATE_CONTRACT);
 
@@ -227,16 +273,22 @@ impl BackendApi for MockApi {
             return (Err(BackendError::unknown(backend_error)), gas_info);
         }
 
-        let request: ContractCreate = from_slice(request, 2*1024*1024).unwrap();
-        if request.creator.is_empty() || request.admin_addr.is_empty() || (request.code_id==0 && request.wasm_code.is_empty()){
-            return (Err(BackendError::bad_argument()), gas_info)
+        let request: ContractCreate = from_slice(request, 2 * 1024 * 1024).unwrap();
+        if request.creator.is_empty()
+            || request.admin_addr.is_empty()
+            || (request.code_id == 0 && request.wasm_code.is_empty())
+        {
+            return (Err(BackendError::bad_argument()), gas_info);
         }
 
         if gas_info.externally_used > gas_limit {
-            return (Err(BackendError::out_of_gas()), gas_info)
+            return (Err(BackendError::out_of_gas()), gas_info);
         }
 
-        (Ok(Addr::unchecked(MOCK_CONTRACT_ADDR).to_string()), gas_info)
+        (
+            Ok(Addr::unchecked(MOCK_CONTRACT_ADDR).to_string()),
+            gas_info,
+        )
     }
 }
 
@@ -272,7 +324,8 @@ pub fn mock_info(sender: &str, funds: &[Coin]) -> MessageInfo {
 mod tests {
     use super::*;
     use crate::BackendError;
-    use cosmwasm_std::coins;
+    use cosmwasm_std::{coins, Binary};
+    use serde_json::to_vec;
 
     #[test]
     fn mock_info_works() {

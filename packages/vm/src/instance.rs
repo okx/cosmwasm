@@ -9,7 +9,12 @@ use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
 use crate::environment::{Environment, InternalCallParam, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
-use crate::imports::{do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_call, do_db_read, do_db_read_ex, do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_delegate_call, do_ed25519_batch_verify, do_ed25519_verify, do_new_contract, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify};
+use crate::imports::{
+    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_call, do_db_read,
+    do_db_read_ex, do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug,
+    do_delegate_call, do_ed25519_batch_verify, do_ed25519_verify, do_new_contract, do_query_chain,
+    do_secp256k1_recover_pubkey, do_secp256k1_verify,
+};
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
@@ -82,7 +87,7 @@ where
         backend: Backend<A, S, Q>,
         gas_limit: u64,
         print_debug: bool,
-        param: InternalCallParam,
+        _param: InternalCallParam,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
         cur_block_num: u64,
@@ -91,7 +96,6 @@ where
         let store = module.store();
 
         let env = Environment::new(backend.api, gas_limit, print_debug);
-
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -281,10 +285,14 @@ where
         env.move_in_global(
             wasmer_instance
                 .exports
-                .get_global("wasmer_metering_remaining_points").unwrap().clone(),
+                .get_global("wasmer_metering_remaining_points")
+                .unwrap()
+                .clone(),
             wasmer_instance
                 .exports
-                .get_global("wasmer_metering_points_exhausted").unwrap().clone(),
+                .get_global("wasmer_metering_points_exhausted")
+                .unwrap()
+                .clone(),
         );
         env.move_in(backend.storage, backend.querier);
         let instance = Instance {
