@@ -7,12 +7,12 @@ use wasmer::{Exports, Function, ImportObject, Instance as WasmerInstance, Module
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{Environment, KeyType};
+use crate::environment::{Environment, InternalCallParam, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,
     do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_ed25519_batch_verify,
-    do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify, do_new_contract,
+    do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call,do_new_contract,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -73,6 +73,7 @@ where
             backend,
             options.gas_limit,
             options.print_debug,
+            InternalCallParam::default(),
             None,
             None,
             block_num,
@@ -85,6 +86,7 @@ where
         backend: Backend<A, S, Q>,
         gas_limit: u64,
         print_debug: bool,
+        param: InternalCallParam,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
         cur_block_num: u64,
@@ -92,7 +94,7 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let mut env = Environment::new(backend.api, gas_limit, print_debug);
+        let mut env = Environment::new_ex(backend.api, gas_limit, print_debug, param);
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -248,6 +250,16 @@ where
             Function::new_native_with_env(store, env.clone(), do_db_next),
         );
 
+        env_imports.insert(
+            "call",
+            Function::new_native_with_env(store, env.clone(), do_call),
+        );
+
+        env_imports.insert(
+            "delegate_call",
+            Function::new_native_with_env(store, env.clone(), do_delegate_call),
+        );
+
         import_obj.register("env", env_imports);
 
         if let Some(extra_imports) = extra_imports {
@@ -351,6 +363,10 @@ where
         self.env.get_gas_left()
     }
 
+    pub fn get_externally_used_gas(&self) -> u64 {
+        self.env.get_externally_used_gas()
+    }
+
     /// Creates and returns a gas report.
     /// This is a snapshot and multiple reports can be created during the lifetime of
     /// an instance.
@@ -450,6 +466,7 @@ where
         backend,
         gas_limit,
         print_debug,
+        InternalCallParam::default(),
         extra_imports,
         None,
         block_num,
@@ -567,6 +584,7 @@ mod tests {
             backend,
             instance_options.gas_limit,
             false,
+            InternalCallParam::default(),
             Some(extra_imports),
             None,
             0,

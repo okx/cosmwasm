@@ -2,6 +2,7 @@ use std::vec::Vec;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+
 use crate::addresses::{Addr, CanonicalAddr, Instantiate2AddressError};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, SystemError, VerificationError};
 use crate::import_helpers::{from_high_half, from_low_half};
@@ -17,6 +18,7 @@ use crate::{
     iterator::{Order, Record},
     memory::get_optional_region_address,
 };
+use crate::{Env, WasmMsg};
 pub use crate::binary::Binary;
 pub use crate::types::ContractCreate;
 
@@ -24,6 +26,8 @@ pub use crate::types::ContractCreate;
 const CANONICAL_ADDRESS_BUFFER_LENGTH: usize = 64;
 /// An upper bound for typical human readable address formats (e.g. 42 for Ethereum hex addresses or 90 for bech32)
 const HUMAN_ADDRESS_BUFFER_LENGTH: usize = 90;
+
+const CALL_RESPONSE_BUFFER_LENGTH: usize = 1024*1024;
 
 // This interface will compile into required Wasm imports.
 // A complete documentation those functions is available in the VM that provides them:
@@ -81,6 +85,12 @@ extern "C" {
     /// Executes a query on the chain (import). Not to be confused with the
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
+
+    /// Executes a cross contract call
+    fn call(env_ptr: u32, msg_ptr: u32, destination_ptr: u32) -> u32;
+
+    // Executes a cross contract delegate_call
+    fn delegate_call(env_ptr: u32, msg_ptr: u32, destination_ptr: u32) -> u32;
 
     fn new_contract(request: u32, destination_ptr: u32) -> u32;
 }
@@ -412,6 +422,70 @@ impl Api for ExternalApi {
             10 => Err(VerificationError::GenericErr),
             error_code => Err(VerificationError::unknown_err(error_code)),
         }
+    }
+
+    fn call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> StdResult<Vec<u8>> {
+        let raw = to_vec(env).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
+        }).unwrap();
+        let env_send = build_region(&raw);
+        let env_ptr = env_send.as_ref() as *const Region as u32;
+
+        let raw_msg = to_vec(msg).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
+        }).unwrap();
+        let msg_send = build_region(&raw_msg);
+        let msg_ptr = msg_send.as_ref() as *const Region as u32;
+
+        let destination = alloc(CALL_RESPONSE_BUFFER_LENGTH);
+        let result =
+            unsafe { call(env_ptr, msg_ptr, destination as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "call errored: {}",
+                error
+            )));
+        }
+
+        let res = unsafe { consume_region(destination) };
+        Ok(res)
+    }
+
+    fn delegate_call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> StdResult<Vec<u8>> {
+        let raw = to_vec(env).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
+        }).unwrap();
+        let env_send = build_region(&raw);
+        let env_ptr = env_send.as_ref() as *const Region as u32;
+
+        let raw_msg = to_vec(msg).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {:?}", serialize_err))
+        }).unwrap();
+        let msg_send = build_region(&raw_msg);
+        let msg_ptr = msg_send.as_ref() as *const Region as u32;
+
+        let destination = alloc(CALL_RESPONSE_BUFFER_LENGTH);
+        let result =
+            unsafe { delegate_call(env_ptr, msg_ptr, destination as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "delegate_call errored: {}",
+                error
+            )));
+        }
+
+        let res = unsafe { consume_region(destination) };
+        Ok(res)
     }
 
     fn debug(&self, message: &str) {

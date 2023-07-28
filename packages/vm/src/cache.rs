@@ -10,6 +10,7 @@ use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::checksum::Checksum;
 use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS};
+use crate::environment::InternalCallParam;
 use crate::errors::{VmError, VmResult};
 use crate::filesystem::mkdir_p;
 use crate::instance::{Instance, InstanceOptions};
@@ -324,6 +325,29 @@ where
             backend,
             options.gas_limit,
             options.print_debug,
+            InternalCallParam::default(),
+            None,
+            Some(&self.instantiation_lock),
+            self.cur_block_num,
+            self.block_milestone.clone(),
+        )?;
+        Ok(instance)
+    }
+
+    pub fn get_instance_ex(
+        &self,
+        checksum: &Checksum,
+        backend: Backend<A, S, Q>,
+        options: InstanceOptions,
+        param: InternalCallParam,
+    ) -> VmResult<Instance<A, S, Q>> {
+        let module = self.get_module(checksum)?;
+        let instance = Instance::from_module(
+            &module,
+            backend,
+            options.gas_limit,
+            options.print_debug,
+            param,
             None,
             Some(&self.instantiation_lock),
             self.cur_block_num,
