@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::checksum::Checksum;
+use crate::environment::GasConfigInfo;
 use crate::compatibility::{check_wasm, SUPPORTED_IMPORTS};
 use crate::environment::InternalCallParam;
 use crate::errors::{VmError, VmResult};
@@ -320,6 +321,10 @@ where
         options: InstanceOptions,
     ) -> VmResult<Instance<A, S, Q>> {
         let module = self.get_module(checksum)?;
+        let gas_config_info = GasConfigInfo{write_cost_flat: options.write_cost_flat,
+            write_cost_per_byte: options.write_cost_per_byte,
+            delete_cost: options.delete_cost,
+            gas_mul: options.gas_mul};
         let instance = Instance::from_module(
             &module,
             backend,
@@ -330,6 +335,7 @@ where
             Some(&self.instantiation_lock),
             self.cur_block_num,
             self.block_milestone.clone(),
+            gas_config_info
         )?;
         Ok(instance)
     }
@@ -342,6 +348,10 @@ where
         param: InternalCallParam,
     ) -> VmResult<Instance<A, S, Q>> {
         let module = self.get_module(checksum)?;
+        let gas_config_info = GasConfigInfo{write_cost_flat: options.write_cost_flat,
+            write_cost_per_byte: options.write_cost_per_byte,
+            delete_cost: options.delete_cost,
+            gas_mul: options.gas_mul};
         let instance = Instance::from_module(
             &module,
             backend,
@@ -352,6 +362,7 @@ where
             Some(&self.instantiation_lock),
             self.cur_block_num,
             self.block_milestone.clone(),
+            gas_config_info,
         )?;
         Ok(instance)
     }

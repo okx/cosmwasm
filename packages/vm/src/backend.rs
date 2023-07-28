@@ -139,14 +139,22 @@ pub trait BackendApi: Copy + Clone + Send {
                                                    info: &MessageInfo,
                                                    call_msg: &[u8],
                                                    block_env: &Env,
-                                                   gas_limit: u64
+                                                   gas_limit: u64,
+                                                   write_cost_flat: u64,
+                                                   write_cost_per_byte: u64,
+                                                   delete_cost:u64,
+                                                   gas_mul: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo);
     fn delegate_call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
                                                             contract_address: String,
                                                             info: &MessageInfo,
                                                             call_msg: &[u8],
                                                             block_env: &Env,
-                                                            gas_limit: u64
+                                                            gas_limit: u64,
+                                                            write_cost_flat: u64,
+                                                            write_cost_per_byte: u64,
+                                                            delete_cost:u64,
+                                                            gas_mul: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo);
     fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String>;
 }

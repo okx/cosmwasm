@@ -162,7 +162,12 @@ impl BackendApi for MockApi {
                                                             info: &MessageInfo,
                                                             _call_msg: &[u8],
                                                             block_env: &Env,
-                                                            gas_limit: u64
+                                                            gas_limit: u64,
+                                                            write_cost_flat: u64,
+                                                            write_cost_per_byte: u64,
+                                                            delete_cost:u64,
+                                                            gas_mul: u64,
+
     ) -> (VmResult<Vec<u8>>, GasInfo) {
         let gas_info = GasInfo::new(100, 100);
         // for test error case
@@ -192,7 +197,11 @@ impl BackendApi for MockApi {
                                                                      info: &MessageInfo,
                                                                      _call_msg: &[u8],
                                                                      block_env: &Env,
-                                                                     gas_limit: u64
+                                                                     gas_limit: u64,
+                                                                     write_cost_flat: u64,
+                                                                     write_cost_per_byte: u64,
+                                                                     delete_cost:u64,
+                                                                     gas_mul: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo) {
         let gas_info = GasInfo::new(100, 100);
         // for test error case
