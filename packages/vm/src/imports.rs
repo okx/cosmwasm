@@ -719,6 +719,14 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
+        env.move_in_global(
+            instance
+                .exports
+                .get_global("wasmer_metering_remaining_points").unwrap().clone(),
+            instance
+                .exports
+                .get_global("wasmer_metering_points_exhausted").unwrap().clone(),
+        );
         env.set_storage_readonly(false);
 
         (env, instance)
