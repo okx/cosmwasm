@@ -15,6 +15,10 @@ const DEFAULT_GAS_LIMIT: u64 = 400_000 * 150_000;
 const DEFAULT_INSTANCE_OPTIONS: InstanceOptions = InstanceOptions {
     gas_limit: DEFAULT_GAS_LIMIT,
     print_debug: false,
+    write_cost_flat: 2000,
+    write_cost_per_byte: 30,
+    delete_cost: 1000,
+    gas_mul: 38000000,
 };
 // Cache
 const MEMORY_CACHE_SIZE: Size = Size::mebi(200);
