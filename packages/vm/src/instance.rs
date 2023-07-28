@@ -12,7 +12,8 @@ use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,
     do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_ed25519_batch_verify,
-    do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify, do_new_contract,
+    do_ed25519_verify, do_new_contract, do_query_chain, do_secp256k1_recover_pubkey,
+    do_secp256k1_verify,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -282,7 +283,7 @@ where
     }
 
     pub fn commit_store(&mut self) -> VmResult<()> {
-        let binding = self.env.state_cache.borrow();
+        let mut binding = self.env.state_cache.borrow_mut();
         for (key, cache_store) in binding.iter() {
             match cache_store.key_type {
                 KeyType::Write => {
@@ -300,7 +301,7 @@ where
                 KeyType::Read => (),
             }
         }
-        self.env.state_cache.borrow_mut().clear();
+        binding.clear();
         Ok(())
     }
 
