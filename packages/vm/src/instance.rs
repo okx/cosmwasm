@@ -7,7 +7,7 @@ use wasmer::{Exports, Function, ImportObject, Instance as WasmerInstance, Module
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{Environment, InternalCallParam, GasConfigInfo, KeyType};
+use crate::environment::{Environment, GasConfigInfo, InternalCallParam, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
     do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_call, do_db_read,
@@ -42,7 +42,7 @@ pub struct InstanceOptions {
     pub print_debug: bool,
     pub write_cost_flat: u64,
     pub write_cost_per_byte: u64,
-    pub delete_cost:u64,
+    pub delete_cost: u64,
     pub gas_mul: u64,
 }
 
@@ -92,7 +92,7 @@ where
         backend: Backend<A, S, Q>,
         gas_limit: u64,
         print_debug: bool,
-        _param: InternalCallParam,
+        param: InternalCallParam,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
         cur_block_num: u64,

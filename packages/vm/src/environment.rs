@@ -33,7 +33,7 @@ pub enum Never {}
 pub struct GasConfigInfo {
     pub write_cost_flat: u64,
     pub write_cost_per_byte: u64,
-    pub delete_cost:u64,
+    pub delete_cost: u64,
     pub gas_mul: u64,
 }
 
@@ -189,7 +189,13 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         }
     }
 
-    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam, gas_config_info: GasConfigInfo) -> Self {
+    pub fn new_ex(
+        api: A,
+        gas_limit: u64,
+        print_debug: bool,
+        param: InternalCallParam,
+        gas_config_info: GasConfigInfo,
+    ) -> Self {
         Environment {
             api,
             print_debug,
@@ -557,7 +563,12 @@ mod tests {
         Environment<MockApi, MockStorage, MockQuerier>,
         Box<WasmerInstance>,
     ) {
-        let env = Environment::new(MockApi::default(), gas_limit, false, GasConfigInfo::default());
+        let env = Environment::new(
+            MockApi::default(),
+            gas_limit,
+            false,
+            GasConfigInfo::default(),
+        );
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();

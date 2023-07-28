@@ -149,7 +149,12 @@ fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
 }
 
 /// consum gas for set store to chain
-pub fn consum_set_gas_cost(value_length: u32, write_cost_flat: u64, write_cost_per_byte: u64, gas_mul: u64) -> GasInfo {
+pub fn consum_set_gas_cost(
+    value_length: u32,
+    write_cost_flat: u64,
+    write_cost_per_byte: u64,
+    gas_mul: u64,
+) -> GasInfo {
     let mut used_gas = write_cost_flat;
     used_gas += write_cost_per_byte * (value_length as u64);
     used_gas *= gas_mul;
@@ -197,7 +202,12 @@ pub fn do_db_write_ex<A: BackendApi, S: Storage, Q: Querier>(
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&env.memory(), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let gas_info = consum_set_gas_cost(value.len() as u32, env.gas_config_info.write_cost_flat, env.gas_config_info.write_cost_per_byte, env.gas_config_info.gas_mul);
+    let gas_info = consum_set_gas_cost(
+        value.len() as u32,
+        env.gas_config_info.write_cost_flat,
+        env.gas_config_info.write_cost_per_byte,
+        env.gas_config_info.gas_mul,
+    );
     env.state_cache.borrow_mut().insert(
         key,
         CacheStore {
@@ -239,7 +249,8 @@ pub fn do_db_remove_ex<A: BackendApi, S: Storage, Q: Querier>(
 
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let gas_info = consum_remove_gas_cost(env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
+    let gas_info =
+        consum_remove_gas_cost(env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
     env.state_cache
         .borrow_mut()
         .entry(key)
