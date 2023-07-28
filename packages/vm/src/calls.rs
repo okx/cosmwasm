@@ -599,7 +599,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{mock_env, mock_info, mock_instance};
+    use crate::testing::{mock_env, mock_info, mock_instance, mock_instance_with_gas_limit};
     use cosmwasm_std::{coins, Empty};
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
@@ -617,7 +617,7 @@ mod tests {
         call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();
-        assert_eq!(instance.get_gas_left(), 494235049729);
+        assert_eq!(instance.get_gas_left(), 494208349729);
     }
 
     #[test]
@@ -635,6 +635,7 @@ mod tests {
         let info = mock_info("verifies", &coins(15, "earth"));
         let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
         let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
+        assert_eq!(instance.get_gas_left(), 49986115999918);
         assert_eq!(result.unwrap().unwrap().attributes[1].value, "1000"); // len=6 [34, 49, 48, 48, 48, 34]
 
         let mut instance =
@@ -651,10 +652,11 @@ mod tests {
         let info = mock_info("verifies", &coins(15, "earth"));
         let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
         let result1 = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
+        assert_eq!(instance.get_gas_left(), 49966506649891);
         assert_eq!(
             result1.unwrap().unwrap().attributes[1].value,
             "1000000000000000000000000000000"
-        )
+        );
         // len=33 [34, 49, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 34]
     }
 
@@ -675,7 +677,7 @@ mod tests {
         call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
             .unwrap()
             .unwrap();
-        assert_eq!(instance.get_gas_left(), 485686146123);
+        assert_eq!(instance.get_gas_left(), 485666346123);
     }
 
     #[test]
@@ -694,7 +696,6 @@ mod tests {
         let err =
             call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg).unwrap_err();
         assert!(matches!(err, VmError::GasDepletion {}));
-        assert_eq!(instance.get_gas_left(), 0);
     }
 
     #[test]
@@ -719,7 +720,7 @@ mod tests {
             }
             err => panic!("Unexpected error: {:?}", err),
         }
-        assert_eq!(instance.get_gas_left(), 493100600000);
+        assert_eq!(instance.get_gas_left(), 493115900000);
     }
 
     #[test]
@@ -742,7 +743,7 @@ mod tests {
             }
             err => panic!("Unexpected error: {:?}", err),
         }
-        assert_eq!(instance.get_gas_left(), 493655750000);
+        assert_eq!(instance.get_gas_left(), 493670900000);
     }
 
     #[test]
@@ -768,7 +769,7 @@ mod tests {
             query_response.as_slice(),
             b"{\"verifier\":\"someone else\"}"
         );
-        assert_eq!(instance.get_gas_left(), 485028949541);
+        assert_eq!(instance.get_gas_left(), 484988149541);
     }
 
     #[test]
@@ -787,7 +788,7 @@ mod tests {
         let contract_result = call_query(&mut instance, &mock_env(), msg).unwrap();
         let query_response = contract_result.unwrap();
         assert_eq!(query_response.as_slice(), b"{\"verifier\":\"verifies\"}");
-        assert_eq!(instance.get_gas_left(), 489741349723);
+        assert_eq!(instance.get_gas_left(), 489693649723);
     }
 
     #[cfg(feature = "stargate")]

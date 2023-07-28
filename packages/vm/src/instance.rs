@@ -9,11 +9,7 @@ use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
 use crate::environment::{Environment, InternalCallParam, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
-use crate::imports::{
-    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,
-    do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_ed25519_batch_verify,
-    do_ed25519_verify, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call,do_new_contract,
-};
+use crate::imports::{do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_call, do_db_read, do_db_read_ex, do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug, do_delegate_call, do_ed25519_batch_verify, do_ed25519_verify, do_new_contract, do_query_chain, do_secp256k1_recover_pubkey, do_secp256k1_verify};
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
@@ -94,7 +90,8 @@ where
     ) -> VmResult<Self> {
         let store = module.store();
 
-        let mut env = Environment::new_ex(backend.api, gas_limit, print_debug, param);
+        let env = Environment::new(backend.api, gas_limit, print_debug);
+
 
         let mut import_obj = ImportObject::new();
         let mut env_imports = Exports::new();
@@ -281,15 +278,13 @@ where
         let instance_ptr = NonNull::from(wasmer_instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
-        let remaining_points = wasmer_instance
-            .exports
-            .get_global("wasmer_metering_remaining_points");
-        let points_exhausted = wasmer_instance
-            .exports
-            .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
-            remaining_points.unwrap().clone(),
-            points_exhausted.unwrap().clone(),
+        env.move_in_global(
+            wasmer_instance
+                .exports
+                .get_global("wasmer_metering_remaining_points").unwrap().clone(),
+            wasmer_instance
+                .exports
+                .get_global("wasmer_metering_points_exhausted").unwrap().clone(),
         );
         env.move_in(backend.storage, backend.querier);
         let instance = Instance {
@@ -304,7 +299,7 @@ where
     }
 
     pub fn commit_store(&mut self) -> VmResult<()> {
-        let binding = self.env.state_cache.borrow();
+        let mut binding = self.env.state_cache.borrow_mut();
         for (key, cache_store) in binding.iter() {
             match cache_store.key_type {
                 KeyType::Write => {
@@ -322,7 +317,7 @@ where
                 KeyType::Read => (),
             }
         }
-        self.env.state_cache.borrow_mut().clear();
+        binding.clear();
         Ok(())
     }
 

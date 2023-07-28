@@ -1,8 +1,11 @@
 //! Internal details to be used by instance.rs only
 use std::borrow::{Borrow, BorrowMut};
-use std::ptr::{NonNull};
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+
+use std::ptr::NonNull;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 use wasmer::{Global, HostEnvInitError, Instance as WasmerInstance, Memory, Val, WasmerEnv};
@@ -99,8 +102,6 @@ pub struct CacheStore {
 /// A environment that provides access to the ContextData.
 /// The environment is clonable but clones access the same underlying data.
 pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
-    pub global_remaining_points: Option<Global>,
-    pub global_points_exhausted: Option<Global>,
     pub api: A,
     pub print_debug: bool,
     pub gas_config: GasConfig,
@@ -134,8 +135,6 @@ unsafe impl<A: BackendApi, S: Storage, Q: Querier> Sync for Environment<A, S, Q>
 impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
     fn clone(&self) -> Self {
         Environment {
-            global_remaining_points: self.global_remaining_points.clone(),
-            global_points_exhausted: self.global_points_exhausted.clone(),
             api: self.api,
             print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
@@ -157,8 +156,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> WasmerEnv for Environment<A, S, Q> {
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
         Environment {
-            global_remaining_points: None,
-            global_points_exhausted: None,
             api,
             print_debug,
             gas_config: GasConfig::default(),
@@ -172,8 +169,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
 
     pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam) -> Self {
         Environment {
-            global_remaining_points: None,
-            global_points_exhausted: None,
             api,
             print_debug,
             gas_config: GasConfig::default(),
@@ -338,12 +333,13 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         })
     }
 
-    pub fn get_gas_left_ex(&self, remain: &Global, exhausted: &Global) -> u64 {
+    pub fn get_gas_left_ex(&self, remain: &Rc<Global>, exhausted: &Rc<Global>) -> u64 {
         match exhausted.get() {
             value if value.unwrap_i32() > 0 => 0,
             _ => u64::try_from(remain.get()).unwrap(),
         }
     }
+
     pub fn get_gas_left(&self) -> u64 {
         self.with_wasmer_instance(|instance| {
             Ok(match get_remaining_points(instance) {
@@ -354,6 +350,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
+
+    pub fn set_gas_left_ex(&self, remain_points: &Rc<Global>, new_limit: u64) {
+        remain_points.set(new_limit.into())
+            .expect("Can't set `wasmer_metering_remaining_points` in Instance");
+    }
     pub fn get_externally_used_gas(&self) -> u64 {
         let externally_used_gas= self.with_gas_state_mut(|gas_state| {
             gas_state.externally_used_gas
@@ -361,10 +362,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         externally_used_gas
     }
 
-    pub fn set_global(&mut self, remain: Global, exhausted: Global) {
-        self.global_remaining_points = Some(remain);
-        self.global_points_exhausted = Some(exhausted)
-    }
 
     pub fn set_gas_left(&self, new_value: u64) {
         self.with_wasmer_instance(|instance| {
@@ -374,9 +371,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn set_gas_left_ex(&self, a: &Global, new_limit: u64) {
-        a.set(new_limit.into())
-            .expect("Can't set `wasmer_metering_remaining_points` in Instance");
+    pub fn move_in_global(&self, remain: Global, exhausted: Global) {
+        self.with_context_data_mut(|context_data| {
+            context_data.global_remaining_points = Some(Rc::new(remain));
+            context_data.global_points_exhausted = Some(Rc::new(exhausted));
+        });
     }
 
     /// Decreases gas left by the given amount.
@@ -447,6 +446,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
 }
 
 pub struct ContextData<S: Storage, Q: Querier> {
+    global_remaining_points: Option<Rc<Global>>,
+    global_points_exhausted: Option<Rc<Global>>,
     gas_state: GasState,
     storage: Option<S>,
     storage_readonly: bool,
@@ -459,6 +460,8 @@ pub struct ContextData<S: Storage, Q: Querier> {
 impl<S: Storage, Q: Querier> ContextData<S, Q> {
     pub fn new(gas_limit: u64) -> Self {
         ContextData::<S, Q> {
+            global_remaining_points: None,
+            global_points_exhausted: None,
             gas_state: GasState::with_limit(gas_limit),
             storage: None,
             storage_readonly: true,
@@ -473,8 +476,11 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     info: GasInfo,
 ) -> VmResult<()> {
-    let remain_points = env.global_remaining_points.as_ref().unwrap();
-    let exhausted_points = env.global_points_exhausted.as_ref().unwrap();
+    let remain_points_from_env = env.with_context_data(|cd| cd.global_remaining_points.clone());
+    let exhausted_points_env = env.with_context_data(|cd| cd.global_points_exhausted.clone());
+    let remain_points = remain_points_from_env.as_ref().unwrap();
+    let exhausted_points = exhausted_points_env.as_ref().unwrap();
+
     let gas_left = env.get_gas_left_ex(remain_points, exhausted_points);
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
@@ -530,7 +536,7 @@ mod tests {
         Environment<MockApi, MockStorage, MockQuerier>,
         Box<WasmerInstance>,
     ) {
-        let mut env = Environment::new(MockApi::default(), gas_limit, false);
+        let env = Environment::new(MockApi::default(), gas_limit, false);
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();
@@ -562,15 +568,13 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
-        let remaining_points = instance
-            .exports
-            .get_global("wasmer_metering_remaining_points");
-        let points_exhausted = instance
-            .exports
-            .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
-            remaining_points.unwrap().clone(),
-            points_exhausted.unwrap().clone(),
+        env.move_in_global(
+            instance
+                .exports
+                .get_global("wasmer_metering_remaining_points").unwrap().clone(),
+            instance
+                .exports
+                .get_global("wasmer_metering_points_exhausted").unwrap().clone(),
         );
 
         (env, instance)

@@ -12,7 +12,7 @@ use cosmwasm_crypto::{
 use cosmwasm_std::{Addr, Env};
 
 #[cfg(feature = "iterator")]
-use cosmwasm_std::{Order, ContractCreate};
+use cosmwasm_std::Order;
 
 use crate::backend::{BackendApi, BackendError, Querier, Storage};
 use crate::conversion::{ref_to_u32, to_u32};
@@ -78,7 +78,6 @@ const DEFAULT_WRITE_COST_PER_BYTE: u64 = 30;
 const DEFAULT_DELETE_COST: u64 = 1000;
 const DEFAULT_GAS_MULTIPLIER: u64 = 38000000;
 
-
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -111,7 +110,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let b = env.state_cache.borrow();
+    let mut b = env.state_cache.borrow_mut();
     let cache = b.get(&key);
     let ret = match cache {
         Some(store_cache) => {
@@ -134,7 +133,7 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         None => return Ok(0),
     };
     let result = write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr);
-    env.state_cache.borrow_mut().insert(
+    b.insert(
         key,
         CacheStore {
             value: out_data,
@@ -537,11 +536,7 @@ pub fn do_new_contract<A: BackendApi, S: Storage, Q: Querier>(
     source_ptr: u32,
     destination_ptr: u32,
 ) -> VmResult<u32> {
-    let source_data = read_region(
-        &env.memory(),
-        source_ptr,
-        MAX_LENGTH_NEW_CONTRACT_REQUEST,
-    )?;
+    let source_data = read_region(&env.memory(), source_ptr, MAX_LENGTH_NEW_CONTRACT_REQUEST)?;
     if source_data.is_empty() {
         return write_to_contract::<A, S, Q>(env, b"Input is empty");
     }
@@ -799,7 +794,7 @@ mod tests {
         Box<WasmerInstance>,
     ) {
         let gas_limit = TESTING_GAS_LIMIT;
-        let mut env = Environment::new(api, gas_limit, false);
+        let env = Environment::new(api, gas_limit, false);
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();
@@ -831,15 +826,13 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
-        let remaining_points = wasmer_instance
-            .exports
-            .get_global("wasmer_metering_remaining_points");
-        let points_exhausted = wasmer_instance
-            .exports
-            .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
-            remaining_points.unwrap().clone(),
-            points_exhausted.unwrap().clone(),
+        env.move_in_global(
+            instance
+                .exports
+                .get_global("wasmer_metering_remaining_points").unwrap().clone(),
+            instance
+                .exports
+                .get_global("wasmer_metering_points_exhausted").unwrap().clone(),
         );
         env.set_storage_readonly(false);
 
