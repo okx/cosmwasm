@@ -51,7 +51,7 @@ pub use crate::serde::{from_slice, to_vec};
 pub use crate::size::Size;
 
 // for call
-pub use crate::environment::{Environment, process_gas_info, InternalCallParam};
+pub use crate::environment::{process_gas_info, Environment, InternalCallParam};
 
 #[doc(hidden)]
 pub mod internals {

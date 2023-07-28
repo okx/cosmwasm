@@ -3,10 +3,10 @@ use std::ops::AddAssign;
 use std::string::FromUtf8Error;
 use thiserror::Error;
 
+use crate::{Environment, VmResult};
 use cosmwasm_std::{Binary, ContractResult, Env, MessageInfo, SystemResult};
 #[cfg(feature = "iterator")]
 use cosmwasm_std::{Order, Record};
-use crate::{Environment, VmResult};
 
 /// A structure that represents gas cost to be deducted from the remaining gas.
 /// This is always needed when computations are performed outside of
@@ -134,19 +134,23 @@ pub trait Storage {
 pub trait BackendApi: Copy + Clone + Send {
     fn canonical_address(&self, human: &str) -> BackendResult<Vec<u8>>;
     fn human_address(&self, canonical: &[u8]) -> BackendResult<String>;
-    fn call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
-                                                   contract_address: String,
-                                                   info: &MessageInfo,
-                                                   call_msg: &[u8],
-                                                   block_env: &Env,
-                                                   gas_limit: u64,
+    fn call<A: BackendApi, S: Storage, Q: Querier>(
+        &self,
+        env: &Environment<A, S, Q>,
+        contract_address: String,
+        info: &MessageInfo,
+        call_msg: &[u8],
+        block_env: &Env,
+        gas_limit: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo);
-    fn delegate_call<A: BackendApi, S: Storage, Q: Querier>(&self, env: &Environment<A, S, Q>,
-                                                            contract_address: String,
-                                                            info: &MessageInfo,
-                                                            call_msg: &[u8],
-                                                            block_env: &Env,
-                                                            gas_limit: u64,
+    fn delegate_call<A: BackendApi, S: Storage, Q: Querier>(
+        &self,
+        env: &Environment<A, S, Q>,
+        contract_address: String,
+        info: &MessageInfo,
+        call_msg: &[u8],
+        block_env: &Env,
+        gas_limit: u64,
     ) -> (VmResult<Vec<u8>>, GasInfo);
     fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String>;
 }

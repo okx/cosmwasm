@@ -1,7 +1,6 @@
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::binary::Binary;
 use crate::coin::Coin;
-use crate::{Env, WasmMsg};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, VerificationError};
 #[cfg(feature = "iterator")]
 use crate::iterator::{Order, Record};
@@ -27,6 +26,7 @@ use crate::serde_basic_type::{deserialize_from_bytes, SerializeForBasicType};
 use crate::ContractInfoResponse;
 #[cfg(feature = "cosmwasm_1_3")]
 use crate::{DenomMetadata, PageRequest};
+use crate::{Env, WasmMsg};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -179,17 +179,9 @@ pub trait Api {
         public_keys: &[&[u8]],
     ) -> Result<bool, VerificationError>;
 
-    fn call(
-        &self,
-        env: &Env,
-        msg: &WasmMsg,
-    ) -> StdResult<Vec<u8>>;
+    fn call(&self, env: &Env, msg: &WasmMsg) -> StdResult<Vec<u8>>;
 
-    fn delegate_call(
-        &self,
-        env: &Env,
-        msg: &WasmMsg,
-    ) -> StdResult<Vec<u8>>;
+    fn delegate_call(&self, env: &Env, msg: &WasmMsg) -> StdResult<Vec<u8>>;
 
     /// Emits a debugging message that is handled depending on the environment (typically printed to console or ignored).
     /// Those messages are not persisted to chain.
@@ -202,7 +194,7 @@ pub trait Api {
         code_id: u64,
         msg: Binary,
         admin: String,
-        label:  String,
+        label: String,
         is_create2: bool,
         salt: Binary,
     ) -> StdResult<Addr>;
