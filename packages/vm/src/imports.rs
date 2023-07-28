@@ -72,12 +72,6 @@ const MAX_CALL_DEPTH: u32 = 20;
 /// Max length for a create contract message
 const MAX_LENGTH_NEW_CONTRACT_REQUEST: usize = 2 * MI;
 
-/// default gas cost for write
-const DEFAULT_WRITE_COST_FLAT: u64 = 2000;
-const DEFAULT_WRITE_COST_PER_BYTE: u64 = 30;
-const DEFAULT_DELETE_COST: u64 = 1000;
-const DEFAULT_GAS_MULTIPLIER: u64 = 38000000;
-
 // Import implementations
 //
 // This block of do_* prefixed functions is tailored for Wasmer's
@@ -154,17 +148,19 @@ fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
         .or(write_to_contract(env, input))
 }
 
-pub fn consum_set_gas_cost(value_length: u32) -> GasInfo {
-    let mut used_gas = DEFAULT_WRITE_COST_FLAT;
-    used_gas += DEFAULT_WRITE_COST_PER_BYTE * (value_length as u64);
-    used_gas *= DEFAULT_GAS_MULTIPLIER;
+/// consum gas for set store to chain
+pub fn consum_set_gas_cost(value_length: u32, write_cost_flat: u64, write_cost_per_byte: u64, gas_mul: u64) -> GasInfo {
+    let mut used_gas = write_cost_flat;
+    used_gas += write_cost_per_byte * (value_length as u64);
+    used_gas *= gas_mul;
 
     GasInfo::with_externally_used(used_gas)
 }
 
 /// consum gas for remove store to chain
-pub fn consum_remove_gas_cost() -> GasInfo {
-    let used_gas = DEFAULT_DELETE_COST;
+pub fn consum_remove_gas_cost(delete_cost: u64, gas_mul: u64) -> GasInfo {
+    let mut used_gas = delete_cost;
+    used_gas *= gas_mul;
     GasInfo::with_externally_used(used_gas)
 }
 
@@ -201,7 +197,7 @@ pub fn do_db_write_ex<A: BackendApi, S: Storage, Q: Querier>(
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&env.memory(), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let gas_info = consum_set_gas_cost(value.len() as u32);
+    let gas_info = consum_set_gas_cost(value.len() as u32, env.gas_config_info.write_cost_flat, env.gas_config_info.write_cost_per_byte, env.gas_config_info.gas_mul);
     env.state_cache.borrow_mut().insert(
         key,
         CacheStore {
@@ -243,7 +239,7 @@ pub fn do_db_remove_ex<A: BackendApi, S: Storage, Q: Querier>(
 
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let gas_info = consum_remove_gas_cost();
+    let gas_info = consum_remove_gas_cost(env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
     env.state_cache
         .borrow_mut()
         .entry(key)
