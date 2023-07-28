@@ -626,8 +626,7 @@ pub fn do_call<A: BackendApi, S: Storage, Q: Querier>(
 
     let gas_left = env.get_gas_left();
 
-    let (result, gas_info) = env.api.call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left,
-    env.gas_config_info.write_cost_flat, env.gas_config_info.write_cost_per_byte, env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
+    let (result, gas_info) = env.api.call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left);
     process_gas_info::<A, S, Q>(env, gas_info)?;
     match result {
         Ok(data) => {
@@ -671,8 +670,7 @@ pub fn do_delegate_call<A: BackendApi, S: Storage, Q: Querier>(
 
     let gas_left = env.get_gas_left();
 
-    let (result, gas_info) = env.api.delegate_call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left,
-                                                   env.gas_config_info.write_cost_flat, env.gas_config_info.write_cost_per_byte, env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
+    let (result, gas_info) = env.api.delegate_call(env, contract_address.clone(), &info, call_msg.as_slice(), &benv,gas_left);
     process_gas_info::<A, S, Q>(env, gas_info)?;
     match result {
         Ok(data) => {
