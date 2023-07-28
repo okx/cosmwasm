@@ -30,6 +30,25 @@ pub enum Never {}
 /** gas config data */
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GasConfigInfo {
+    pub write_cost_flat: u64,
+    pub write_cost_per_byte: u64,
+    pub delete_cost:u64,
+    pub gas_mul: u64,
+}
+
+impl Default for GasConfigInfo {
+    fn default() -> Self {
+        GasConfigInfo {
+            write_cost_flat: 2000,
+            write_cost_per_byte: 30,
+            delete_cost: 1000,
+            gas_mul: 38000000,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct GasConfig {
     /// Gas costs of VM (not Backend) provided functionality
     /// secp256k1 signature verification cost
@@ -110,6 +129,7 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub delegate_contract_addr: Addr, // used for delegate call
     data: Arc<RwLock<ContextData<S, Q>>>,
     pub state_cache: RefCell<BTreeMap<Vec<u8>, CacheStore>>,
+    pub gas_config_info: GasConfigInfo,
 }
 
 pub struct InternalCallParam {
@@ -143,6 +163,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             delegate_contract_addr: self.delegate_contract_addr.clone(),
             data: self.data.clone(),
             state_cache: self.state_cache.clone(),
+            gas_config_info: self.gas_config_info.clone(),
         }
     }
 }
@@ -154,7 +175,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> WasmerEnv for Environment<A, S, Q> {
 }
 
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
+    pub fn new(api: A, gas_limit: u64, print_debug: bool, gas_config_info: GasConfigInfo) -> Self {
         Environment {
             api,
             print_debug,
@@ -164,10 +185,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             delegate_contract_addr: Addr::unchecked(""),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
             state_cache: RefCell::new(BTreeMap::new()),
+            gas_config_info,
         }
     }
 
-    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam) -> Self {
+    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam, gas_config_info: GasConfigInfo) -> Self {
         Environment {
             api,
             print_debug,
@@ -177,6 +199,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             delegate_contract_addr: param.delegate_contract_addr,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
             state_cache: RefCell::new(BTreeMap::new()),
+            gas_config_info,
         }
     }
 
@@ -534,7 +557,7 @@ mod tests {
         Environment<MockApi, MockStorage, MockQuerier>,
         Box<WasmerInstance>,
     ) {
-        let env = Environment::new(MockApi::default(), gas_limit, false);
+        let env = Environment::new(MockApi::default(), gas_limit, false, GasConfigInfo::default());
 
         let module = compile(CONTRACT, TESTING_MEMORY_LIMIT, &[]).unwrap();
         let store = module.store();
