@@ -372,21 +372,21 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn get_gas_left_ex(&self) -> u64 {
-        self.with_context_data(|cd|{
-            match cd.global_points_exhausted.as_ref().unwrap().get() {
-                value if value.unwrap_i32() > 0 => 0,
-                _ => u64::try_from(cd.global_remaining_points.as_ref().unwrap().get()).unwrap(),
-            }
-        } )
-    }
-
-    pub fn set_gas_left_ex(&self,new_limit: u64) {
-        self.with_context_data(|cd|{
-            cd.global_remaining_points.as_ref().unwrap().set(new_limit.into())
-                .expect("Can't set `wasmer_metering_remaining_points` in Instance");
-        });
-    }
+    // pub fn get_gas_left_ex(&self) -> u64 {
+    //     self.with_context_data(|cd|{
+    //         match cd.global_points_exhausted.as_ref().unwrap().get() {
+    //             value if value.unwrap_i32() > 0 => 0,
+    //             _ => u64::try_from(cd.global_remaining_points.as_ref().unwrap().get()).unwrap(),
+    //         }
+    //     } )
+    // }
+    //
+    // pub fn set_gas_left_ex(&self,new_limit: u64) {
+    //     self.with_context_data(|cd|{
+    //         cd.global_remaining_points.as_ref().unwrap().set(new_limit.into())
+    //             .expect("Can't set `wasmer_metering_remaining_points` in Instance");
+    //     });
+    // }
     pub fn get_externally_used_gas(&self) -> u64 {
         let externally_used_gas =
             self.with_gas_state_mut(|gas_state| gas_state.externally_used_gas);
@@ -401,12 +401,12 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn move_in_global(&self, remain: Global, exhausted: Global) {
-        self.with_context_data_mut(|context_data| {
-            context_data.global_remaining_points = Some(remain);
-            context_data.global_points_exhausted = Some(exhausted);
-        });
-    }
+    // pub fn move_in_global(&self, remain: Global, exhausted: Global) {
+    //     self.with_context_data_mut(|context_data| {
+    //         context_data.global_remaining_points = Some(remain);
+    //         context_data.global_points_exhausted = Some(exhausted);
+    //     });
+    // }
 
     /// Decreases gas left by the given amount.
     /// If the amount exceeds the available gas, the remaining gas is set to 0 and
@@ -476,8 +476,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
 }
 
 pub struct ContextData<S: Storage, Q: Querier> {
-    global_remaining_points: Option<Global>,
-    global_points_exhausted: Option<Global>,
+    // global_remaining_points: Option<Global>,
+    // global_points_exhausted: Option<Global>,
     gas_state: GasState,
     storage: Option<S>,
     storage_readonly: bool,
@@ -490,8 +490,8 @@ pub struct ContextData<S: Storage, Q: Querier> {
 impl<S: Storage, Q: Querier> ContextData<S, Q> {
     pub fn new(gas_limit: u64) -> Self {
         ContextData::<S, Q> {
-            global_remaining_points: None,
-            global_points_exhausted: None,
+            // global_remaining_points: None,
+            // global_points_exhausted: None,
             gas_state: GasState::with_limit(gas_limit),
             storage: None,
             storage_readonly: true,
@@ -600,18 +600,18 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(gas_limit);
-        env.move_in_global(
-            instance
-                .exports
-                .get_global("wasmer_metering_remaining_points")
-                .unwrap()
-                .clone(),
-            instance
-                .exports
-                .get_global("wasmer_metering_points_exhausted")
-                .unwrap()
-                .clone(),
-        );
+        // env.move_in_global(
+        //     instance
+        //         .exports
+        //         .get_global("wasmer_metering_remaining_points")
+        //         .unwrap()
+        //         .clone(),
+        //     instance
+        //         .exports
+        //         .get_global("wasmer_metering_points_exhausted")
+        //         .unwrap()
+        //         .clone(),
+        // );
 
         (env, instance)
     }
