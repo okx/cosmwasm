@@ -104,20 +104,6 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
 ) -> VmResult<u32> {
     let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let mut b = env.state_cache.borrow_mut();
-    let cache = b.get(&key);
-    let ret = match cache {
-        Some(store_cache) => {
-            process_gas_info::<A, S, Q>(env, store_cache.gas_info)?;
-            write_to_contract_ex::<A, S, Q>(env, &store_cache.value, _value_ptr)
-        }
-        None => Ok(0),
-    }
-    .expect("Oh, some thing wrong with hash map");
-    if ret > 0 {
-        return Ok(ret);
-    }
-
     let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
     process_gas_info::<A, S, Q>(env, gas_info)?;
     let value = result?;
@@ -126,16 +112,42 @@ pub fn do_db_read_ex<A: BackendApi, S: Storage, Q: Querier>(
         Some(data) => data,
         None => return Ok(0),
     };
-    let result = write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr);
-    b.insert(
-        key,
-        CacheStore {
-            value: out_data,
-            gas_info,
-            key_type: KeyType::Read,
-        },
-    );
-    result
+    write_to_contract::<A, S, Q>(env, &out_data)
+
+    // let key = read_region(&env.memory(), key_ptr, MAX_LENGTH_DB_KEY)?;
+    //
+    // let mut b = env.state_cache.borrow_mut();
+    // let cache = b.get(&key);
+    // let ret = match cache {
+    //     Some(store_cache) => {
+    //         process_gas_info::<A, S, Q>(env, store_cache.gas_info)?;
+    //         write_to_contract_ex::<A, S, Q>(env, &store_cache.value, _value_ptr)
+    //     }
+    //     None => Ok(0),
+    // }
+    // .expect("Oh, some thing wrong with hash map");
+    // if ret > 0 {
+    //     return Ok(ret);
+    // }
+    //
+    // let (result, gas_info) = env.with_storage_from_context::<_, _>(|store| Ok(store.get(&key)))?;
+    // process_gas_info::<A, S, Q>(env, gas_info)?;
+    // let value = result?;
+    //
+    // let out_data = match value {
+    //     Some(data) => data,
+    //     None => return Ok(0),
+    // };
+    // let result = write_to_contract_ex::<A, S, Q>(env, &out_data, _value_ptr);
+    // b.insert(
+    //     key,
+    //     CacheStore {
+    //         value: out_data,
+    //         gas_info,
+    //         key_type: KeyType::Read,
+    //     },
+    // );
+    // result
 }
 
 fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
