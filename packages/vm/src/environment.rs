@@ -104,20 +104,6 @@ impl GasState {
     }
 }
 
-#[derive(Clone)]
-pub enum KeyType {
-    Read,
-    Write,
-    Remove,
-}
-
-#[derive(Clone)]
-pub struct CacheStore {
-    pub value: Vec<u8>,
-    pub gas_info: GasInfo,
-    pub key_type: KeyType,
-}
-
 /// A environment that provides access to the ContextData.
 /// The environment is clonable but clones access the same underlying data.
 pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
@@ -128,7 +114,6 @@ pub struct Environment<A: BackendApi, S: Storage, Q: Querier> {
     pub sender_addr: Addr,            // used for delegate call
     pub delegate_contract_addr: Addr, // used for delegate call
     data: Arc<RwLock<ContextData<S, Q>>>,
-    pub state_cache: RefCell<BTreeMap<Vec<u8>, CacheStore>>,
     pub gas_config_info: GasConfigInfo,
 }
 
@@ -162,7 +147,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             sender_addr: self.sender_addr.clone(),
             delegate_contract_addr: self.delegate_contract_addr.clone(),
             data: self.data.clone(),
-            state_cache: self.state_cache.clone(),
             gas_config_info: self.gas_config_info.clone(),
         }
     }
@@ -184,7 +168,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             sender_addr: Addr::unchecked(""),
             delegate_contract_addr: Addr::unchecked(""),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
-            state_cache: RefCell::new(BTreeMap::new()),
             gas_config_info,
         }
     }
@@ -204,7 +187,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             sender_addr: param.sender_addr,
             delegate_contract_addr: param.delegate_contract_addr,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
-            state_cache: RefCell::new(BTreeMap::new()),
             gas_config_info,
         }
     }

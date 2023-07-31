@@ -342,16 +342,12 @@ where
     Q: Querier + 'static,
 {
     instance.set_storage_readonly(false);
-    let result = call_raw(
+    call_raw(
         instance,
         "instantiate",
         &[env, info, msg],
         read_limits::RESULT_INSTANTIATE,
-    );
-
-    instance.commit_store()?;
-
-    result
+    )
 }
 
 /// Calls Wasm export "execute" and returns raw data from the contract.
@@ -368,16 +364,12 @@ where
     Q: Querier + 'static,
 {
     instance.set_storage_readonly(false);
-    let result = call_raw(
+   call_raw(
         instance,
         "execute",
         &[env, info, msg],
         read_limits::RESULT_EXECUTE,
-    );
-
-    instance.commit_store()?;
-
-    result
+    )
 }
 
 /// Calls Wasm export "migrate" and returns raw data from the contract.
