@@ -1,9 +1,6 @@
 //! Internal details to be used by instance.rs only
 use std::borrow::{Borrow, BorrowMut};
 
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
