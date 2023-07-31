@@ -222,14 +222,14 @@ pub fn do_db_write_ex<A: BackendApi, S: Storage, Q: Querier>(
         env.gas_config_info.write_cost_per_byte,
         env.gas_config_info.gas_mul,
     );
-    env.state_cache.borrow_mut().insert(
-        key,
-        CacheStore {
-            value,
-            gas_info,
-            key_type: KeyType::Write,
-        },
-    );
+    // env.state_cache.borrow_mut().insert(
+    //     key,
+    //     CacheStore {
+    //         value,
+    //         gas_info,
+    //         key_type: KeyType::Write,
+    //     },
+    // );
     process_gas_info::<A, S, Q>(env, gas_info)?;
 
     Ok(())
@@ -265,14 +265,14 @@ pub fn do_db_remove_ex<A: BackendApi, S: Storage, Q: Querier>(
 
     let gas_info =
         consum_remove_gas_cost(env.gas_config_info.delete_cost, env.gas_config_info.gas_mul);
-    env.state_cache
-        .borrow_mut()
-        .entry(key)
-        .or_insert(CacheStore {
-            value: Vec::default(),
-            gas_info,
-            key_type: KeyType::Remove,
-        });
+    // env.state_cache
+    //     .borrow_mut()
+    //     .entry(key)
+    //     .or_insert(CacheStore {
+    //         value: Vec::default(),
+    //         gas_info,
+    //         key_type: KeyType::Remove,
+    //     });
     process_gas_info(env, gas_info)?;
 
     Ok(())

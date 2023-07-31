@@ -312,28 +312,28 @@ where
         &self.env.api
     }
 
-    pub fn commit_store(&mut self) -> VmResult<()> {
-        let mut binding = self.env.state_cache.borrow_mut();
-        for (key, cache_store) in binding.iter() {
-            match cache_store.key_type {
-                KeyType::Write => {
-                    let (result, _) = self.env.with_storage_from_context::<_, _>(|store| {
-                        Ok(store.set(&key, &cache_store.value))
-                    })?;
-                    result?;
-                }
-                KeyType::Remove => {
-                    let (result, _) = self
-                        .env
-                        .with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
-                    result?;
-                }
-                KeyType::Read => (),
-            }
-        }
-        binding.clear();
-        Ok(())
-    }
+    // pub fn commit_store(&mut self) -> VmResult<()> {
+    //     let mut binding = self.env.state_cache.borrow_mut();
+    //     for (key, cache_store) in binding.iter() {
+    //         match cache_store.key_type {
+    //             KeyType::Write => {
+    //                 let (result, _) = self.env.with_storage_from_context::<_, _>(|store| {
+    //                     Ok(store.set(&key, &cache_store.value))
+    //                 })?;
+    //                 result?;
+    //             }
+    //             KeyType::Remove => {
+    //                 let (result, _) = self
+    //                     .env
+    //                     .with_storage_from_context::<_, _>(|store| Ok(store.remove(&key)))?;
+    //                 result?;
+    //             }
+    //             KeyType::Read => (),
+    //         }
+    //     }
+    //     binding.clear();
+    //     Ok(())
+    // }
 
     /// Decomposes this instance into its components.
     /// External dependencies are returned for reuse, the rest is dropped.
