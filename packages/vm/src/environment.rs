@@ -362,13 +362,6 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         })
     }
 
-    pub fn get_gas_left_ex(&self, remain: &Rc<Global>, exhausted: &Rc<Global>) -> u64 {
-        match exhausted.get() {
-            value if value.unwrap_i32() > 0 => 0,
-            _ => u64::try_from(remain.get()).unwrap(),
-        }
-    }
-
     pub fn get_gas_left(&self) -> u64 {
         self.with_wasmer_instance(|instance| {
             Ok(match get_remaining_points(instance) {
@@ -379,10 +372,20 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn set_gas_left_ex(&self, remain_points: &Rc<Global>, new_limit: u64) {
-        remain_points
-            .set(new_limit.into())
-            .expect("Can't set `wasmer_metering_remaining_points` in Instance");
+    pub fn get_gas_left_ex(&self) -> u64 {
+        self.with_context_data(|cd|{
+            match cd.global_points_exhausted.as_ref().unwrap().get() {
+                value if value.unwrap_i32() > 0 => 0,
+                _ => u64::try_from(cd.global_remaining_points.as_ref().unwrap().get()).unwrap(),
+            }
+        } )
+    }
+
+    pub fn set_gas_left_ex(&self,new_limit: u64) {
+        self.with_context_data(|cd|{
+            cd.global_remaining_points.as_ref().unwrap().set(new_limit.into())
+                .expect("Can't set `wasmer_metering_remaining_points` in Instance");
+        });
     }
     pub fn get_externally_used_gas(&self) -> u64 {
         let externally_used_gas =
@@ -400,8 +403,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
 
     pub fn move_in_global(&self, remain: Global, exhausted: Global) {
         self.with_context_data_mut(|context_data| {
-            context_data.global_remaining_points = Some(Rc::new(remain));
-            context_data.global_points_exhausted = Some(Rc::new(exhausted));
+            context_data.global_remaining_points = Some(remain);
+            context_data.global_points_exhausted = Some(exhausted);
         });
     }
 
@@ -473,8 +476,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
 }
 
 pub struct ContextData<S: Storage, Q: Querier> {
-    global_remaining_points: Option<Rc<Global>>,
-    global_points_exhausted: Option<Rc<Global>>,
+    global_remaining_points: Option<Global>,
+    global_points_exhausted: Option<Global>,
     gas_state: GasState,
     storage: Option<S>,
     storage_readonly: bool,
@@ -503,12 +506,8 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     info: GasInfo,
 ) -> VmResult<()> {
-    let remain_points_from_env = env.with_context_data(|cd| cd.global_remaining_points.clone());
-    let exhausted_points_env = env.with_context_data(|cd| cd.global_points_exhausted.clone());
-    let remain_points = remain_points_from_env.as_ref().unwrap();
-    let exhausted_points = exhausted_points_env.as_ref().unwrap();
-
-    let gas_left = env.get_gas_left_ex(remain_points, exhausted_points);
+    // let gas_left = env.get_gas_left_ex();
+    let gas_left = env.get_gas_left();
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
         gas_state.externally_used_gas += info.externally_used;
@@ -520,7 +519,8 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     });
 
     // This tells wasmer how much more gas it can consume from this point in time.
-    env.set_gas_left_ex(remain_points, new_limit);
+    // env.set_gas_left_ex( new_limit);
+    env.set_gas_left( new_limit);
 
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())

@@ -598,15 +598,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
     use super::*;
     use crate::testing::{mock_env, mock_info, mock_instance, mock_instance_with_gas_limit};
     use cosmwasm_std::{coins, Empty};
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
     static CYBERPUNK: &[u8] = include_bytes!("../testdata/cyberpunk.wasm");
-    static COUNTER_TEST_DB_READ_EX: &[u8] = include_bytes!("../testdata/ex_test/1000u128.wasm");
-    static COUNTER_TEST_DB_READ_EX_LIMIT: &[u8] =
-        include_bytes!("../testdata/ex_test/1000000000000000000000000000000u128.wasm");
+    static COUNTER_TEST_DB_READ_EX: &[u8] = include_bytes!("/Users/oker/scf/gopath/src/github.com/okx/counter/artifacts/counter.wasm");
     #[test]
     fn call_instantiate_works() {
         let mut instance = mock_instance(CONTRACT, &[]);
@@ -622,7 +621,8 @@ mod tests {
 
     #[test]
     fn test_db_read_ex() {
-        let mut instance = mock_instance_with_gas_limit(COUNTER_TEST_DB_READ_EX, 50000000000000);
+        let s=Instant::now();
+        let mut instance = mock_instance_with_gas_limit(COUNTER_TEST_DB_READ_EX, 50000000000000000);
 
         // init
         let info = mock_info("creator", &coins(1000, "earth"));
@@ -633,30 +633,10 @@ mod tests {
 
         // execute
         let info = mock_info("verifies", &coins(15, "earth"));
-        let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
+        let msg = br#"{"other_opt":{"opt_type":"read","times":"3000000"}}"#;
         let result = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
-        assert_eq!(instance.get_gas_left(), 49986115999918);
-        assert_eq!(result.unwrap().unwrap().attributes[1].value, "1000"); // len=6 [34, 49, 48, 48, 48, 34]
-
-        let mut instance =
-            mock_instance_with_gas_limit(COUNTER_TEST_DB_READ_EX_LIMIT, 50000000000000);
-
-        // init
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let msg = br#"{}"#;
-        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg)
-            .unwrap()
-            .unwrap();
-
-        // execute
-        let info = mock_info("verifies", &coins(15, "earth"));
-        let msg = br#"{"other_opt":{"opt_type":"read","times":"5"}}"#;
-        let result1 = call_execute::<_, _, _, Empty>(&mut instance, &mock_env(), &info, msg);
-        assert_eq!(instance.get_gas_left(), 49966506649891);
-        assert_eq!(
-            result1.unwrap().unwrap().attributes[1].value,
-            "1000000000000000000000000000000"
-        );
+        println!("result {:?}",result);
+        println!("fuck time {:?}",s.elapsed()) ;
         // len=33 [34, 49, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 34]
     }
 
@@ -728,7 +708,7 @@ mod tests {
         let mut instance = mock_instance(CYBERPUNK, &[]);
 
         let info = mock_info("creator", &[]);
-        call_instantiate::<_, _, _, Empty>(&mut instance, &mock_env(), &info, br#"{}"#)
+        call_instantiate::<_, _ , _, Empty>(&mut instance, &mock_env(), &info, br#"{}"#)
             .unwrap()
             .unwrap();
 

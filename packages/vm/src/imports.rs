@@ -143,9 +143,11 @@ fn write_to_contract_ex<A: BackendApi, S: Storage, Q: Querier>(
     input: &[u8],
     output: u32,
 ) -> VmResult<u32> {
-    write_region(&env.memory(), output, input)
-        .map(|_| output)
-        .or(write_to_contract(env, input))
+    let ret = write_region(&env.memory(), output, input);
+    match ret {
+        Ok(_) => Ok(output),
+        _ => write_to_contract(env, input),
+    }
 }
 
 /// consum gas for set store to chain
