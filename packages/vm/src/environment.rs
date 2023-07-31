@@ -506,8 +506,8 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     env: &Environment<A, S, Q>,
     info: GasInfo,
 ) -> VmResult<()> {
-    // let gas_left = env.get_gas_left_ex();
-    let gas_left = env.get_gas_left();
+    let gas_left = env.get_gas_left_ex();
+    // let gas_left = env.get_gas_left();
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
         gas_state.externally_used_gas += info.externally_used;
@@ -519,8 +519,8 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     });
 
     // This tells wasmer how much more gas it can consume from this point in time.
-    // env.set_gas_left_ex( new_limit);
-    env.set_gas_left( new_limit);
+    env.set_gas_left_ex( new_limit);
+    // env.set_gas_left( new_limit);
 
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())
