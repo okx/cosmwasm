@@ -554,6 +554,7 @@ mod tests {
                 "delegate_call" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_typed(&mut store, |_a: u32| {}),
                 "abort" => Function::new_typed(&mut store, |_a: u32| {}),
+                "new_contract" => Function::new_typed(&mut store, |_a: u32, _b: u32| -> u32 { 0 }),
             },
         };
         let instance = Box::from(WasmerInstance::new(&mut store, &module, &import_obj).unwrap());

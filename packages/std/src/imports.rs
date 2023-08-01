@@ -1,7 +1,8 @@
 use std::vec::Vec;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
-use crate::addresses::{Addr, CanonicalAddr};
-use crate::binary::Binary;
+use crate::addresses::{Addr, CanonicalAddr, Instantiate2AddressError};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, SystemError, VerificationError};
 use crate::import_helpers::{from_high_half, from_low_half};
 use crate::memory::{alloc, build_region, consume_region, Region};
@@ -16,6 +17,8 @@ use crate::{
     iterator::{Order, Record},
     memory::get_optional_region_address,
 };
+pub use crate::binary::Binary;
+pub use crate::types::ContractCreate;
 use crate::{Env, WasmMsg};
 
 /// An upper bound for typical canonical address lengths (e.g. 20 in Cosmos SDK/Ethereum or 32 in Nano/Substrate)
@@ -78,6 +81,8 @@ extern "C" {
     /// Executes a query on the chain (import). Not to be confused with the
     /// query export, which queries the state of the contract.
     fn query_chain(request: u32) -> u32;
+
+    fn new_contract(request: u32, destination_ptr: u32) -> u32;
 
     /// Executes a cross contract call
     fn call(env_ptr: u32, msg_ptr: u32, destination_ptr: u32) -> u32;
@@ -435,6 +440,55 @@ impl Api for ExternalApi {
         let region = build_region(message.as_bytes());
         let region_ptr = region.as_ref() as *const Region as u32;
         unsafe { debug(region_ptr) };
+    }
+
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        code_id: u64,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        is_create2: bool,
+        salt: Binary,
+    ) -> StdResult<Addr>{
+        if code.len()==0 && code_id==0{
+            return Err(StdError::generic_err("Invalid byte code and code id"));
+        }
+        if is_create2 && (salt.is_empty() || salt.len() > 64) {
+            return Err(StdError::generic_err("Invalid salt length"));
+        };
+
+        let request = ContractCreate {
+            creator: creator_addr,
+            wasm_code: code,
+            code_id,
+            init_msg: msg,
+            admin_addr: admin,
+            label,
+            is_create2,
+            salt,
+        };
+
+        let raw = to_vec(&request).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+        })?;
+        let req = build_region(&raw);
+        let request_ptr = &*req as *const Region as u32;
+        let addr = alloc(HUMAN_ADDRESS_BUFFER_LENGTH);
+
+        let result = unsafe { new_contract(request_ptr, addr as u32) };
+        if result != 0 {
+            let error = unsafe { consume_string_region_written_by_vm(result as *mut Region) };
+            return Err(StdError::generic_err(format!(
+                "new contract errored: {}",
+                error
+            )));
+        }
+
+        let address = unsafe { consume_string_region_written_by_vm(addr) };
+        Ok(Addr::unchecked(address))
     }
 }
 

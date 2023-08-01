@@ -62,6 +62,9 @@ const MAX_LENGTH_DEBUG: usize = 2 * MI;
 /// Max length for an abort message
 const MAX_LENGTH_ABORT: usize = 2 * MI;
 
+/// Max length for a create contract message
+const MAX_LENGTH_NEW_CONTRACT_REQUEST: usize = 2 * MI;
+
 /// max length call data
 const MAX_LENGTH_CALL_DATA: usize = 64 * KI;
 
@@ -480,6 +483,37 @@ pub fn do_abort<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'sta
     let message_data = read_region(&data.memory(&mut store), message_ptr, MAX_LENGTH_ABORT)?;
     let msg = String::from_utf8_lossy(&message_data);
     Err(VmError::aborted(msg))
+}
+
+pub fn do_new_contract<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
+    mut env: FunctionEnvMut<Environment<A, S, Q>>,
+    source_ptr: u32,
+    destination_ptr: u32,
+) -> VmResult<u32> {
+    let (data, mut store) = env.data_and_store_mut();
+
+    let source_data = read_region(
+        &data.memory(&mut store),
+        source_ptr,
+        MAX_LENGTH_NEW_CONTRACT_REQUEST,
+    )?;
+    if source_data.is_empty() {
+        return write_to_contract::<A, S, Q>(data, &mut store, b"Input is empty");
+    }
+
+    let gas_remaining = data.get_gas_left(&mut store);
+    let (result, gas_info) = data.api.new_contract(&source_data, gas_remaining);
+    process_gas_info::<A, S, Q>(data, &mut store, gas_info)?;
+    match result {
+        Ok(addr) => {
+            write_region(&data.memory(&mut store), destination_ptr, addr.as_bytes())?;
+            Ok(0)
+        }
+        Err(BackendError::UserErr { msg, .. }) => {
+            Ok(write_to_contract::<A, S, Q>(data, &mut store, msg.as_bytes())?)
+        }
+        Err(err) => Err(VmError::from(err)),
+    }
 }
 
 pub fn do_query_chain<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
