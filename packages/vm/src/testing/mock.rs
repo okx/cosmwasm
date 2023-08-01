@@ -1,15 +1,17 @@
 use cosmwasm_std::testing::{digit_sum, riffle_shuffle};
 use cosmwasm_std::{
-    Addr, BlockInfo, Coin, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo,
+    Addr, BlockInfo, Coin, ContractInfo, Env, MessageInfo, Timestamp, TransactionInfo, ContractCreate
 };
 
 use super::querier::MockQuerier;
 use super::storage::MockStorage;
 use crate::{Backend, BackendApi, BackendError, BackendResult, GasInfo};
+use crate::serde::from_slice;
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 const GAS_COST_HUMANIZE: u64 = 44;
 const GAS_COST_CANONICALIZE: u64 = 55;
+const GAS_COST_CREATE_CONTRACT: u64 = 100;
 
 /// All external requirements that can be injected for unit tests.
 /// It sets the given balance for the contract itself, nothing else
@@ -155,6 +157,25 @@ impl BackendApi for MockApi {
         };
         (result, gas_info)
     }
+
+    fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String> {
+        let gas_info = GasInfo::with_externally_used(GAS_COST_CREATE_CONTRACT);
+
+        if let Some(backend_error) = self.backend_error {
+            return (Err(BackendError::unknown(backend_error)), gas_info);
+        }
+
+        let request: ContractCreate = from_slice(request, 2*1024*1024).unwrap();
+        if request.creator.is_empty() || request.admin_addr.is_empty() || (request.code_id==0 && request.wasm_code.is_empty()){
+            return (Err(BackendError::bad_argument()), gas_info)
+        }
+
+        if gas_info.externally_used > gas_limit {
+            return (Err(BackendError::out_of_gas()), gas_info)
+        }
+
+        (Ok(Addr::unchecked(MOCK_CONTRACT_ADDR).to_string()), gas_info)
+    }
 }
 
 /// Returns a default enviroment with height, time, chain_id, and contract address
@@ -189,7 +210,8 @@ pub fn mock_info(sender: &str, funds: &[Coin]) -> MessageInfo {
 mod tests {
     use super::*;
     use crate::BackendError;
-    use cosmwasm_std::coins;
+    use cosmwasm_std::{coins, Binary};
+    use crate::serde::to_vec;
 
     #[test]
     fn mock_info_works() {
@@ -271,5 +293,26 @@ mod tests {
             BackendError::UserErr { msg } => assert!(msg.contains("too long")),
             err => panic!("Unexpected error: {err:?}"),
         }
+    }
+
+    #[test]
+    fn new_contract_works() {
+        let api = MockApi::default();
+
+        let request = ContractCreate {
+            creator: MOCK_CONTRACT_ADDR.to_string(),
+            wasm_code: Binary::default(),
+            code_id: 2,
+            init_msg: Binary::default(),
+            admin_addr: MOCK_CONTRACT_ADDR.to_string(),
+            label: "contract mock".to_string(),
+            is_create2: false,
+            salt: Binary::default(),
+        };
+        let request = to_vec(&request).unwrap();
+        let gas_limit = 1000;
+        let addr = api.new_contract(&request, gas_limit).0.unwrap();
+
+        assert_eq!(addr, Addr::unchecked(MOCK_CONTRACT_ADDR).to_string());
     }
 }

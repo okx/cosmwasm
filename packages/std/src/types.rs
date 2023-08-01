@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::addresses::Addr;
 use crate::coin::Coin;
 use crate::timestamp::Timestamp;
+pub use crate::binary::Binary;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Env {
@@ -108,4 +109,16 @@ pub struct MessageInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct ContractInfo {
     pub address: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq, JsonSchema)]
+pub struct ContractCreate {
+    pub creator: String,
+    pub wasm_code: Binary,
+    pub code_id: u64,
+    pub init_msg: Binary,
+    pub admin_addr: String,
+    pub label: String,
+    pub is_create2: bool,
+    pub salt: Binary,
 }
