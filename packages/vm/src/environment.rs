@@ -126,8 +126,8 @@ pub struct CacheStore {
 /// The environment is clonable but clones access the same underlying data.
 pub struct Environment<A, S, Q> {
     pub memory: Option<Memory>,
-    pub global_remaining_points: Option<Global>,
-    pub global_points_exhausted: Option<Global>,
+    // pub global_remaining_points: Option<Global>,
+    // pub global_points_exhausted: Option<Global>,
     pub api: A,
     pub gas_config: GasConfig,
     data: Arc<RwLock<ContextData<S, Q>>>,
@@ -142,8 +142,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
     fn clone(&self) -> Self {
         Environment {
             memory: None,
-            global_remaining_points: self.global_remaining_points.clone(),
-            global_points_exhausted: self.global_points_exhausted.clone(),
+            // global_remaining_points: self.global_remaining_points.clone(),
+            // global_points_exhausted: self.global_points_exhausted.clone(),
             api: self.api,
             gas_config: self.gas_config.clone(),
             data: self.data.clone(),
@@ -156,8 +156,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     pub fn new(api: A, gas_limit: u64) -> Self {
         Environment {
             memory: None,
-            global_remaining_points: None,
-            global_points_exhausted: None,
+            // global_remaining_points: None,
+            // global_points_exhausted: None,
             api,
             gas_config: GasConfig::default(),
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
@@ -171,10 +171,10 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         })
     }
 
-    pub fn set_global(&mut self, remain: Global, exhausted: Global) {
-        self.global_remaining_points = Some(remain);
-        self.global_points_exhausted = Some(exhausted)
-    }
+    // pub fn set_global(&mut self, remain: Global, exhausted: Global) {
+    //     self.global_remaining_points = Some(remain);
+    //     self.global_points_exhausted = Some(exhausted)
+    // }
 
     pub fn debug_handler(&self) -> Option<Rc<RefCell<DebugHandlerFn>>> {
         self.with_context_data(|context_data| {
@@ -463,9 +463,9 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     store: &mut impl AsStoreMut,
     info: GasInfo,
 ) -> VmResult<()> {
-    let remain_points = env.global_remaining_points.as_ref().unwrap();
-    let exhausted_points = env.global_points_exhausted.as_ref().unwrap();
-    let gas_left = env.get_gas_left_ex(remain_points, exhausted_points, store);
+    // let remain_points = env.global_remaining_points.as_ref().unwrap();
+    // let exhausted_points = env.global_points_exhausted.as_ref().unwrap();
+    let gas_left = env.get_gas_left(store);
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
         gas_state.externally_used_gas += info.externally_used;
@@ -477,7 +477,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     });
 
     // This tells wasmer how much more gas it can consume from this point in time.
-    env.set_gas_left_ex(remain_points, store, new_limit);
+    env.set_gas_left(store, new_limit);
 
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())
@@ -551,16 +551,16 @@ mod tests {
         let instance_ptr = NonNull::from(instance.as_ref());
         env.set_wasmer_instance(Some(instance_ptr));
         env.set_gas_left(&mut store, gas_limit);
-        let remaining_points = instance
-            .exports
-            .get_global("wasmer_metering_remaining_points");
-        let points_exhausted = instance
-            .exports
-            .get_global("wasmer_metering_points_exhausted");
-        env.set_global(
-            remaining_points.unwrap().clone(),
-            points_exhausted.unwrap().clone(),
-        );
+        // let remaining_points = instance
+        //     .exports
+        //     .get_global("wasmer_metering_remaining_points");
+        // let points_exhausted = instance
+        //     .exports
+        //     .get_global("wasmer_metering_points_exhausted");
+        // env.set_global(
+        //     remaining_points.unwrap().clone(),
+        //     points_exhausted.unwrap().clone(),
+        // );
 
         (env, store, instance)
     }
