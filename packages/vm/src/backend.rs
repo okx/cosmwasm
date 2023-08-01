@@ -133,6 +133,7 @@ pub trait Storage {
 pub trait BackendApi: Copy + Clone + Send {
     fn canonical_address(&self, human: &str) -> BackendResult<Vec<u8>>;
     fn human_address(&self, canonical: &[u8]) -> BackendResult<String>;
+    fn new_contract(&self, request: &[u8], gas_limit: u64) -> BackendResult<String>;
 }
 
 pub trait Querier {

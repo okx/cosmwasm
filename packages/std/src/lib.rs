@@ -95,7 +95,7 @@ pub use crate::serde::{from_binary, from_slice, to_binary, to_vec};
 pub use crate::storage::MemoryStorage;
 pub use crate::timestamp::Timestamp;
 pub use crate::traits::{Api, Querier, QuerierResult, QuerierWrapper, Storage};
-pub use crate::types::{BlockInfo, ContractInfo, Env, MessageInfo, TransactionInfo};
+pub use crate::types::{BlockInfo, ContractInfo, Env, MessageInfo, TransactionInfo, ContractCreate};
 
 // Exposed in wasm build only
 
