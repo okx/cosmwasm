@@ -397,13 +397,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
 
     pub fn get_gas_left_ex(
         &self,
-        remain: &Global,
-        exhausted: &Global,
         store: &mut impl AsStoreMut,
     ) -> u64 {
-        match exhausted.get(store) {
+        match self.global_points_exhausted.as_ref().expect("unable to get global_points_exhausted").get(store) {
             value if value.unwrap_i32() > 0 => 0,
-            _ => u64::try_from(remain.get(store)).unwrap(),
+            _ => u64::try_from(self.global_remaining_points.as_ref().expect("unable to get global_remaining_points").get(store)).unwrap(),
         }
     }
 
@@ -417,8 +415,8 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn set_gas_left_ex(&self, a: &Global, store: &mut impl AsStoreMut, new_limit: u64) {
-        a.set(store, new_limit.into())
+    pub fn set_gas_left_ex(&self, store: &mut impl AsStoreMut, new_limit: u64) {
+        self.global_remaining_points.as_ref().expect("unable to get global_remaining_points").set(store, new_limit.into())
             .expect("Can't set `wasmer_metering_remaining_points` in Instance");
     }
 
@@ -522,9 +520,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     store: &mut impl AsStoreMut,
     info: GasInfo,
 ) -> VmResult<()> {
-    let remain_points = env.global_remaining_points.as_ref().unwrap();
-    let exhausted_points = env.global_points_exhausted.as_ref().unwrap();
-    let gas_left = env.get_gas_left_ex(remain_points, exhausted_points, store);
+    let gas_left = env.get_gas_left_ex( store);
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
         gas_state.externally_used_gas += info.externally_used;
@@ -536,7 +532,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     });
 
     // This tells wasmer how much more gas it can consume from this point in time.
-    env.set_gas_left_ex(remain_points, store, new_limit);
+    env.set_gas_left_ex( store, new_limit);
 
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())
