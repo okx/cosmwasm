@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 use derivative::Derivative;
 use wasmer::{AsStoreMut, Global, Instance as WasmerInstance, Memory, MemoryView, Value};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
+use cosmwasm_std::Addr;
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
 use crate::errors::{VmError, VmResult};
@@ -129,9 +130,29 @@ pub struct Environment<A, S, Q> {
     pub global_remaining_points: Option<Global>,
     pub global_points_exhausted: Option<Global>,
     pub api: A,
+    pub print_debug: bool,           // used for call
     pub gas_config: GasConfig,
+    pub call_depth: u32,
+    pub sender_addr: Addr,            // used for delegate call
+    pub delegate_contract_addr: Addr, // used for delegate call
     data: Arc<RwLock<ContextData<S, Q>>>,
     pub state_cache: BTreeMap<Vec<u8>, CacheStore>,
+}
+
+pub struct InternalCallParam {
+    pub call_depth: u32,
+    pub sender_addr: Addr,            // used for delegate call
+    pub delegate_contract_addr: Addr, // used for delegate call
+}
+
+impl Default for InternalCallParam {
+    fn default() -> Self {
+        InternalCallParam {
+            call_depth: 1,
+            sender_addr: Addr::unchecked(""),
+            delegate_contract_addr: Addr::unchecked("")
+        }
+    }
 }
 
 unsafe impl<A: BackendApi, S: Storage, Q: Querier> Send for Environment<A, S, Q> {}
@@ -145,21 +166,44 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
             global_remaining_points: self.global_remaining_points.clone(),
             global_points_exhausted: self.global_points_exhausted.clone(),
             api: self.api,
+            print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
+            call_depth: self.call_depth,
+            sender_addr: self.sender_addr.clone(),
+            delegate_contract_addr: self.delegate_contract_addr.clone(),
             data: self.data.clone(),
             state_cache: self.state_cache.clone(),
         }
     }
 }
-
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64) -> Self {
+    pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
         Environment {
             memory: None,
             global_remaining_points: None,
             global_points_exhausted: None,
             api,
+            print_debug: print_debug,
             gas_config: GasConfig::default(),
+            call_depth: 1,
+            sender_addr: Addr::unchecked(""),
+            delegate_contract_addr: Addr::unchecked(""),
+            data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
+            state_cache: BTreeMap::new(),
+        }
+    }
+
+    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam) -> Self {
+        Environment {
+            memory: None,
+            global_remaining_points: None,
+            global_points_exhausted: None,
+            api,
+            print_debug: print_debug,
+            gas_config: GasConfig::default(),
+            call_depth: param.call_depth,
+            sender_addr: param.sender_addr,
+            delegate_contract_addr: param.delegate_contract_addr,
             data: Arc::new(RwLock::new(ContextData::new(gas_limit))),
             state_cache: BTreeMap::new(),
         }
@@ -431,6 +475,21 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
             (context_data.storage.take(), context_data.querier.take())
         })
     }
+
+    // for ut
+    pub fn set_sender_addr(&mut self, addr: Addr) {
+        self.sender_addr = addr
+    }
+
+    // for ut
+    pub fn set_delegate_contract_addr(&mut self, addr: Addr) {
+        self.delegate_contract_addr = addr
+    }
+
+    // for ut
+    pub fn set_call_depth(&mut self, call_depth: u32) {
+        self.call_depth = call_depth
+    }
 }
 
 pub struct ContextData<S, Q> {
@@ -521,7 +580,8 @@ mod tests {
         Store,
         Box<WasmerInstance>,
     ) {
-        let mut env = Environment::new(MockApi::default(), gas_limit);
+
+        let env = Environment::new(MockApi::default(), gas_limit, false);
 
         let (engine, module) = compile(CONTRACT, &[]).unwrap();
         let mut store = make_store_with_engine(engine, TESTING_MEMORY_LIMIT);
@@ -542,8 +602,11 @@ mod tests {
                 "secp256k1_recover_pubkey" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u64 { 0 }),
                 "ed25519_verify" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "ed25519_batch_verify" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "call" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
+                "delegate_call" => Function::new_typed(&mut store, |_a: u32, _b: u32, _c: u32| -> u32 { 0 }),
                 "debug" => Function::new_typed(&mut store, |_a: u32| {}),
                 "abort" => Function::new_typed(&mut store, |_a: u32| {}),
+                "new_contract" => Function::new_typed(&mut store, |_a: u32, _b: u32| -> u32 { 0 }),
             },
         };
         let instance = Box::from(WasmerInstance::new(&mut store, &module, &import_obj).unwrap());

@@ -1,6 +1,7 @@
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::binary::Binary;
 use crate::coin::Coin;
+use crate::{Env, WasmMsg};
 use crate::errors::{RecoverPubkeyError, StdError, StdResult, VerificationError};
 #[cfg(feature = "iterator")]
 use crate::iterator::{Order, Record};
@@ -182,9 +183,33 @@ pub trait Api {
         public_keys: &[&[u8]],
     ) -> Result<bool, VerificationError>;
 
+    fn call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> StdResult<Vec<u8>>;
+
+    fn delegate_call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> StdResult<Vec<u8>>;
+
     /// Emits a debugging message that is handled depending on the environment (typically printed to console or ignored).
     /// Those messages are not persisted to chain.
     fn debug(&self, message: &str);
+
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        code_id: u64,
+        msg: Binary,
+        admin: String,
+        label:  String,
+        is_create2: bool,
+        salt: Binary,
+    ) -> StdResult<Addr>;
 }
 
 /// A short-hand alias for the two-level query result (1. accessing the contract, 2. executing query in the contract)

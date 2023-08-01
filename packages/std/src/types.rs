@@ -4,15 +4,16 @@ use serde::{Deserialize, Serialize};
 use crate::addresses::Addr;
 use crate::coin::Coin;
 use crate::timestamp::Timestamp;
+pub use crate::binary::Binary;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Env {
     pub block: BlockInfo,
+    pub contract: ContractInfo,
     /// Information on the transaction this message was executed in.
     /// The field is unset when the `MsgExecuteContract`/`MsgInstantiateContract`/`MsgMigrateContract`
     /// is not executed as part of a transaction.
-    pub transaction: Option<TransactionInfo>,
-    pub contract: ContractInfo,
+    pub transaction_info: Option<TransactionInfo>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -47,7 +48,7 @@ pub struct BlockInfo {
     /// #         time: Timestamp::from_nanos(1_571_797_419_879_305_533),
     /// #         chain_id: "cosmos-testnet-14002".to_string(),
     /// #     },
-    /// #     transaction: Some(TransactionInfo { index: 3 }),
+    /// #     transaction_info: Some(TransactionInfo { index: 3 }),
     /// #     contract: ContractInfo {
     /// #         address: Addr::unchecked("contract"),
     /// #     },
@@ -69,7 +70,7 @@ pub struct BlockInfo {
     /// #         time: Timestamp::from_nanos(1_571_797_419_879_305_533),
     /// #         chain_id: "cosmos-testnet-14002".to_string(),
     /// #     },
-    /// #     transaction: Some(TransactionInfo { index: 3 }),
+    /// #     transaction_info: Some(TransactionInfo { index: 3 }),
     /// #     contract: ContractInfo {
     /// #         address: Addr::unchecked("contract"),
     /// #     },
@@ -108,4 +109,16 @@ pub struct MessageInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct ContractInfo {
     pub address: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq, JsonSchema)]
+pub struct ContractCreate {
+    pub creator: String,
+    pub wasm_code: Binary,
+    pub code_id: u64,
+    pub init_msg: Binary,
+    pub admin_addr: String,
+    pub label: String,
+    pub is_create2: bool,
+    pub salt: Binary,
 }

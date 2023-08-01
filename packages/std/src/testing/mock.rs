@@ -41,7 +41,7 @@ use crate::{
     query::{AllDenomMetadataResponse, DenomMetadataResponse},
     PageRequest,
 };
-use crate::{Attribute, DenomMetadata};
+use crate::{Attribute, DenomMetadata, WasmMsg};
 #[cfg(feature = "stargate")]
 use crate::{ChannelResponse, IbcQuery, ListChannelsResponse, PortIdResponse};
 
@@ -234,8 +234,86 @@ impl Api for MockApi {
         )?)
     }
 
+    fn call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> StdResult<Vec<u8>> {
+        match msg {
+            WasmMsg::Execute { contract_addr: _, msg, funds:_} => {
+                println!("env {:?}", env);
+                Ok(msg.to_vec())
+            }
+            _ => {
+                return Err(StdError::generic_err("the WasmMsg is not Execute"));
+            }
+        }
+    }
+
+    fn delegate_call(
+        &self,
+        env: &Env,
+        msg: &WasmMsg,
+    ) -> StdResult<Vec<u8>> {
+        match msg {
+            WasmMsg::Execute { contract_addr: _, msg, funds:_} => {
+                println!("env {:?}", env);
+                Ok(msg.to_vec())
+            }
+            _ => {
+                return Err(StdError::generic_err("the WasmMsg is not Execute"));
+            }
+        }
+    }
+
     fn debug(&self, message: &str) {
         println!("{message}");
+    }
+
+    fn new_contract(
+        &self,
+        creator_addr: String,
+        code: Binary,
+        _code_id: u64,
+        _msg: Binary,
+        admin: String,
+        _label:  String,
+        _is_create2: bool,
+        _salt: Binary,
+    ) -> StdResult<Addr>{
+        let addr_min_length = 5;
+        let addr_max_length = 20;
+        let code_max_length = 200;
+
+        if creator_addr.len() < addr_min_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: creator address too short for this mock implementation (must be >= {addr_min_length})."),
+            ));
+        }
+        if creator_addr.len() > addr_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: creator address too long for this mock implementation (must be <= {addr_max_length})."),
+            ));
+        }
+
+        if admin.len() < addr_min_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: admin address too short for this mock implementation (must be >= {addr_min_length})."),
+            ));
+        }
+        if admin.len() > addr_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: admin address too long for this mock implementation (must be <= {addr_max_length})."),
+            ));
+        }
+
+        if code.len() > code_max_length {
+            return Err(StdError::generic_err(
+                format!("Invalid input: code too long for this mock implementation (must be <= {code_max_length})."),
+            ));
+        }
+
+        Ok(Addr::unchecked(MOCK_CONTRACT_ADDR))
     }
 }
 
@@ -251,7 +329,7 @@ pub fn mock_env() -> Env {
             time: Timestamp::from_nanos(1_571_797_419_879_305_533),
             chain_id: "cosmos-testnet-14002".to_string(),
         },
-        transaction: Some(TransactionInfo { index: 3 }),
+        transaction_info: Some(TransactionInfo { index: 3 }),
         contract: ContractInfo {
             address: Addr::unchecked(MOCK_CONTRACT_ADDR),
         },
@@ -1318,6 +1396,194 @@ mod tests {
 
         let res = api.ed25519_batch_verify(&msgs, &signatures, &public_keys);
         assert_eq!(res.unwrap_err(), VerificationError::InvalidPubkeyFormat);
+    }
+
+    // Basic "works" test.
+    #[test]
+    fn new_contract_works(){
+        let api = MockApi::default();
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let addr = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap();
+        assert_eq!(addr, MOCK_CONTRACT_ADDR);
+    }
+
+    #[test]
+    fn new_contract_input_length() {
+        let api = MockApi::default();
+
+        let creator_addr = "ADDR".to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("creator address too short for this mock implementation (must be >= 5)"));
+
+
+        let creator_addr = "ADDR_ADDR_ADDR_ADDR_ADDR".to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("creator address too long for this mock implementation (must be <= 20)"));
+
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  "ADDR".to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("admin address too short for this mock implementation (must be >= 5)"));
+
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::default();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  "ADDR_ADDR_ADDR_ADDR_ADDR".to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("admin address too long for this mock implementation (must be <= 20)"));
+
+
+        let creator_addr = MOCK_CONTRACT_ADDR.to_string();
+        let code = Binary::from_base64("SGVsbG8sIFdvcmxkISBUaGlzIGlzIGEgYmFzZTY0IGVuY29kaW5nIHN0cmluZy4gVGhpcyBlbmNvZGluZyBoZWxwcyB0byBlbmNvZGluZyBkYXRhIGluIEJhc2U2NCBlbmNvZGluZyB0aGF0IG1lZGl1bSBpcyBhIG51bWJlciBvZiBkYXRhLCBlc3BlY2lhbGx5IGluIFB5dGhvbiB0aGF0IG1vZGlmaWNhdGlvbiBkYXRhIGluIFhNTCBvciBPYmplY3QgSGFzaC4=").unwrap();
+        let code_id = 0;
+        let msg = Binary::default();
+        let admin=  MOCK_CONTRACT_ADDR.to_string();
+        let label = "contract mock".to_string();
+        let is_create2 = false;
+        let salt = Binary::default();
+        let err = api.new_contract(creator_addr,code,code_id,msg,admin,label,is_create2,salt).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("code too long for this mock implementation (must be <= 200)"));
+    }
+
+    #[test]
+    fn call_works() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let exe_msg = String::from("{\"subtract\":{}}");
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let res= api.call(&benv, &msg);
+        assert_eq!(res.unwrap(), exe_msg.into_bytes());
+    }
+
+    #[test]
+    fn call_errors() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let msg = WasmMsg::UpdateAdmin {
+            contract_addr: String::from("contract2"),
+            admin: String::from("admin1")
+        };
+        let res= api.call(&benv, &msg);
+        assert_eq!(res.unwrap_err(), StdError::generic_err("the WasmMsg is not Execute"));
+    }
+
+    #[test]
+    fn delegate_call_works() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let exe_msg = String::from("{\"subtract\":{}}");
+        let msg = WasmMsg::Execute {
+            contract_addr: String::from("contract2"),
+            msg: b"{\"subtract\":{}}".into(),
+            funds: vec![]
+        };
+        let res= api.delegate_call(&benv, &msg);
+        assert_eq!(res.unwrap(), exe_msg.into_bytes());
+    }
+
+    #[test]
+    fn delegate_call_errors() {
+        let api = MockApi::default();
+        let benv  = Env {
+            block: BlockInfo {
+                height: 19_013,
+                time: Timestamp::from_nanos(1_688_109_643_006_501_000),
+                chain_id: "exchain-67".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 0 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(String::from("contract1")),
+            },
+        };
+        let msg = WasmMsg::UpdateAdmin {
+            contract_addr: String::from("contract2"),
+            admin: String::from("admin1")
+        };
+        let res= api.delegate_call(&benv, &msg);
+        assert_eq!(res.unwrap_err(), StdError::generic_err("the WasmMsg is not Execute"));
     }
 
     #[cfg(feature = "cosmwasm_1_1")]
