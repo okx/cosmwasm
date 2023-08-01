@@ -21,6 +21,7 @@ use crate::imports::{
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
 use crate::memory::{read_region, write_region};
+use crate::milestone::higher_than_wasm_v1;
 use crate::size::Size;
 use crate::wasm_backend::{compile, make_store_with_engine};
 
@@ -70,6 +71,8 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
         memory_limit: Option<Size>,
+        block_num: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let (engine, module) = compile(code, &[])?;
         let store = make_store_with_engine(engine, memory_limit);
@@ -81,6 +84,8 @@ where
             options.print_debug,
             None,
             None,
+            block_num,
+            block_milestone,
         )
     }
 
@@ -93,6 +98,8 @@ where
         print_debug: bool,
         extra_imports: Option<HashMap<&str, Exports>>,
         instantiation_lock: Option<&Mutex<()>>,
+        cur_block_num: u64,
+        block_milestone: HashMap<String, u64>,
     ) -> VmResult<Self> {
         let fe = FunctionEnv::new(&mut store, {
             let e = Environment::new(backend.api, gas_limit);
@@ -108,6 +115,10 @@ where
 
         let mut import_obj = Imports::new();
         let mut env_imports = Exports::new();
+
+        if higher_than_wasm_v1(cur_block_num, block_milestone) {
+            //TODO upgrade
+        }
 
         // Reads the database entry at the given key into the the value.
         // Returns 0 if key does not exist and pointer to result region otherwise.
@@ -462,6 +473,8 @@ pub fn instance_from_module<A, S, Q>(
     gas_limit: u64,
     print_debug: bool,
     extra_imports: Option<HashMap<&str, Exports>>,
+    block_num: u64,
+    block_milestone: HashMap<String, u64>,
 ) -> VmResult<Instance<A, S, Q>>
 where
     A: BackendApi + 'static, // 'static is needed here to allow copying API instances into closures
@@ -476,6 +489,8 @@ where
         print_debug,
         extra_imports,
         None,
+        block_num,
+        block_milestone,
     )
 }
 
@@ -510,8 +525,15 @@ mod tests {
     fn from_code_works() {
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let _instance =
-            Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+        let _instance = Instance::from_code(
+            CONTRACT,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -555,8 +577,15 @@ mod tests {
     fn required_capabilities_works() {
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance =
-            Instance::from_code(CONTRACT, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            CONTRACT,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 0);
     }
 
@@ -581,7 +610,15 @@ mod tests {
 
         let backend = mock_backend(&[]);
         let (instance_options, memory_limit) = mock_instance_options();
-        let instance = Instance::from_code(&wasm, backend, instance_options, memory_limit).unwrap();
+        let instance = Instance::from_code(
+            &wasm,
+            backend,
+            instance_options,
+            memory_limit,
+            0,
+            HashMap::new(),
+        )
+        .unwrap();
         assert_eq!(instance.required_capabilities().len(), 3);
         assert!(instance.required_capabilities().contains("nutrients"));
         assert!(instance.required_capabilities().contains("sun"));
@@ -637,6 +674,8 @@ mod tests {
             false,
             Some(extra_imports),
             None,
+            0,
+            HashMap::new(),
         )
         .unwrap();
 
