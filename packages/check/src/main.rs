@@ -8,7 +8,7 @@ use clap::{Arg, ArgAction, Command};
 use colored::Colorize;
 
 use cosmwasm_vm::capabilities_from_csv;
-use cosmwasm_vm::internals::{check_wasm, compile};
+use cosmwasm_vm::internals::{check_wasm, compile, SUPPORTED_IMPORTS};
 
 const DEFAULT_AVAILABLE_CAPABILITIES: &str =
     "iterator,staking,stargate,cosmwasm_1_1,cosmwasm_1_2,cosmwasm_1_3";
@@ -96,7 +96,7 @@ fn check_contract(
     file.read_to_end(&mut wasm)?;
 
     // Check wasm
-    check_wasm(&wasm, available_capabilities)?;
+    check_wasm(&wasm, available_capabilities, SUPPORTED_IMPORTS)?;
 
     // Compile module
     compile(&wasm, &[])?;
