@@ -555,7 +555,7 @@ pub fn do_call<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'stat
     }
 
     let call_data = read_region(&data.memory(&mut store), msg_ptr, MAX_LENGTH_CALL_DATA)?;
-    if benv_data.is_empty() {
+    if call_data.is_empty() {
         return write_to_contract(data, &mut store, b"Input msg is empty");
     }
 
@@ -612,7 +612,7 @@ pub fn do_delegate_call<A: BackendApi + 'static, S: Storage + 'static, Q: Querie
     }
 
     let call_data = read_region(&data.memory(&mut store), msg_ptr, MAX_LENGTH_CALL_DATA)?;
-    if benv_data.is_empty() {
+    if call_data.is_empty() {
         return write_to_contract(data, &mut store, b"Input msg is empty");
     }
 
