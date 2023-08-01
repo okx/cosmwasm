@@ -24,6 +24,8 @@ pub const SUPPORTED_IMPORTS: &[&str] = &[
     "env.debug",
     "env.new_contract",
     "env.query_chain",
+    "env.call",
+    "env.delegate_call",
     #[cfg(feature = "iterator")]
     "env.db_scan",
     #[cfg(feature = "iterator")]

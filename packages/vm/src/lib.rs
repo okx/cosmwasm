@@ -50,6 +50,9 @@ pub use crate::instance::{DebugInfo, GasReport, Instance, InstanceOptions};
 pub use crate::serde::{from_slice, to_vec};
 pub use crate::size::Size;
 
+// for call
+pub use crate::environment::{Environment, process_gas_info, InternalCallParam};
+
 #[doc(hidden)]
 pub mod internals {
     //! We use the internals module for exporting types that are only
