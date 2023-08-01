@@ -432,6 +432,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     pub fn set_delegate_contract_addr(&mut self, addr: Addr) {
         self.delegate_contract_addr = addr
     }
+
+    // for ut
+    pub fn set_call_depth(&mut self, call_depth: u32) {
+        self.call_depth = call_depth
+    }
 }
 
 pub struct ContextData<S, Q> {

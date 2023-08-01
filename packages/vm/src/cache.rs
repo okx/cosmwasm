@@ -333,9 +333,11 @@ where
         options: InstanceOptions,
         param: InternalCallParam,
     ) -> VmResult<Instance<A, S, Q>> {
-        let module = self.get_module(checksum)?;
+        let (cached, memory_limit, _from_pinned) = self.get_module(checksum)?;
+        let store = make_store_with_engine(cached.engine, Some(memory_limit));
         let instance = Instance::from_module(
-            &module,
+            store,
+            &cached.module,
             backend,
             options.gas_limit,
             options.print_debug,

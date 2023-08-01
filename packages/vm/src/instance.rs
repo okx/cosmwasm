@@ -240,12 +240,12 @@ where
 
         env_imports.insert(
             "call",
-            Function::new_native_with_env(&mut store, env.clone(), do_call),
+            Function::new_typed_with_env(&mut store, &fe, do_call),
         );
 
         env_imports.insert(
             "delegate_call",
-            Function::new_native_with_env(&mut store, env.clone(), do_delegate_call),
+            Function::new_typed_with_env(&mut store, &fe, do_delegate_call),
         );
 
         import_obj.register_namespace("env", env_imports);
@@ -356,10 +356,6 @@ where
         let (env, mut store) = fe_mut.data_and_store_mut();
 
         env.get_gas_left(&mut store)
-    }
-
-    pub fn get_externally_used_gas(&self) -> u64 {
-        self.env.get_externally_used_gas()
     }
 
     /// Creates and returns a gas report.
