@@ -97,7 +97,7 @@ where
         instantiation_lock: Option<&Mutex<()>>,
     ) -> VmResult<Self> {
         let fe = FunctionEnv::new(&mut store, {
-            let e = Environment::new_ex(backend.api, gas_limit, param);
+            let e = Environment::new_ex(backend.api, gas_limit, print_debug, param);
             if print_debug {
                 e.set_debug_handler(Some(Rc::new(RefCell::new(
                     |msg: &str, _gas_remaining: DebugInfo<'_>| {

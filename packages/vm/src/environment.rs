@@ -113,6 +113,7 @@ pub type DebugHandlerFn = dyn for<'a, 'b> FnMut(/* msg */ &'a str, DebugInfo<'b>
 pub struct Environment<A, S, Q> {
     pub memory: Option<Memory>,
     pub api: A,
+    pub print_debug: bool,           // used for call
     pub gas_config: GasConfig,
     pub call_depth: u32,
     pub sender_addr: Addr,            // used for delegate call
@@ -145,6 +146,7 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
         Environment {
             memory: None,
             api: self.api,
+            print_debug: self.print_debug,
             gas_config: self.gas_config.clone(),
             call_depth: self.call_depth,
             sender_addr: self.sender_addr.clone(),
@@ -154,10 +156,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Clone for Environment<A, S, Q> {
     }
 }
 impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
-    pub fn new(api: A, gas_limit: u64) -> Self {
+    pub fn new(api: A, gas_limit: u64, print_debug: bool) -> Self {
         Environment {
             memory: None,
             api,
+            print_debug: print_debug,
             gas_config: GasConfig::default(),
             call_depth: 1,
             sender_addr: Addr::unchecked(""),
@@ -166,10 +169,11 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         }
     }
 
-    pub fn new_ex(api: A, gas_limit: u64, param: InternalCallParam) -> Self {
+    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam) -> Self {
         Environment {
             memory: None,
             api,
+            print_debug: print_debug,
             gas_config: GasConfig::default(),
             call_depth: param.call_depth,
             sender_addr: param.sender_addr,
@@ -525,7 +529,7 @@ mod tests {
         Store,
         Box<WasmerInstance>,
     ) {
-        let env = Environment::new(MockApi::default(), gas_limit);
+        let env = Environment::new(MockApi::default(), gas_limit, false);
 
         let (engine, module) = compile(CONTRACT, &[]).unwrap();
         let mut store = make_store_with_engine(engine, TESTING_MEMORY_LIMIT);

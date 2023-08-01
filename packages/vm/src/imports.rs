@@ -741,7 +741,7 @@ mod tests {
         Box<WasmerInstance>,
     ) {
         let gas_limit = TESTING_GAS_LIMIT;
-        let env = Environment::new(api, gas_limit);
+        let env = Environment::new(api, gas_limit, false);
 
         let (engine, module) = compile(CONTRACT, &[]).unwrap();
         let mut store = make_store_with_engine(engine, TESTING_MEMORY_LIMIT);
