@@ -319,7 +319,7 @@ mod tests {
         let error = BackendError::foreign_panic();
         match error {
             BackendError::ForeignPanic { .. } => {}
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -328,7 +328,7 @@ mod tests {
         let error = BackendError::bad_argument();
         match error {
             BackendError::BadArgument { .. } => {}
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -337,7 +337,7 @@ mod tests {
         let error = BackendError::iterator_does_not_exist(15);
         match error {
             BackendError::IteratorDoesNotExist { id, .. } => assert_eq!(id, 15),
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -346,7 +346,7 @@ mod tests {
         let error = BackendError::out_of_gas();
         match error {
             BackendError::OutOfGas { .. } => {}
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -355,7 +355,7 @@ mod tests {
         let error = BackendError::unknown("broken");
         match error {
             BackendError::Unknown { msg, .. } => assert_eq!(msg, "broken"),
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -364,7 +364,7 @@ mod tests {
         let error = BackendError::user_err("invalid input");
         match error {
             BackendError::UserErr { msg, .. } => assert_eq!(msg, "invalid input"),
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -375,7 +375,7 @@ mod tests {
         let error: BackendError = String::from_utf8(vec![0x80]).unwrap_err().into();
         match error {
             BackendError::InvalidUtf8 { .. } => {}
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 }

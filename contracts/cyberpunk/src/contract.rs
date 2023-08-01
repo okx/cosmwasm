@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Deps, DepsMut, Empty, Env, MessageInfo, QueryResponse, Response,
-    StdError, StdResult, WasmMsg,
+    entry_point, to_binary, Api, DenomMetadata, Deps, DepsMut, Empty, Env, MessageInfo,
+    PageRequest, QueryResponse, Response, StdError, StdResult, WasmMsg,
 };
 
 use crate::errors::ContractError;
@@ -38,6 +38,7 @@ pub fn execute(
         Panic {} => execute_panic(),
         Unreachable {} => execute_unreachable(),
         MirrorEnv {} => execute_mirror_env(env),
+        Debug {} => execute_debug(deps.api),
     }
 }
 
@@ -56,7 +57,7 @@ fn execute_argon2(mem_cost: u32, time_cost: u32) -> Result<Response, ContractErr
         hash_length: 32,
     };
     let hash = argon2::hash_encoded(password, salt, &config)
-        .map_err(|e| StdError::generic_err(format!("hash_encoded errored: {}", e)))?;
+        .map_err(|e| StdError::generic_err(format!("hash_encoded errored: {e}")))?;
     // let matches = argon2::verify_encoded(&hash, password).unwrap();
     // assert!(matches);
     Ok(Response::new().set_data(hash.into_bytes()))
@@ -150,15 +151,145 @@ fn execute_mirror_env(env: Env) -> Result<Response, ContractError> {
     Ok(Response::new().set_data(to_binary(&env)?))
 }
 
+fn execute_debug(api: &dyn Api) -> Result<Response, ContractError> {
+    api.debug("Hey, ho – let's go");
+
+    let password = b"password";
+    let salt = b"othersalt";
+
+    for r in 1..10 {
+        api.debug(&format!("Round {r} starting"));
+        let config = argon2::Config {
+            variant: argon2::Variant::Argon2i,
+            version: argon2::Version::Version13,
+            mem_cost: 32,
+            time_cost: r,
+            lanes: 4,
+            thread_mode: argon2::ThreadMode::Sequential,
+            secret: &[],
+            ad: &[],
+            hash_length: 32,
+        };
+        let _hash = argon2::hash_encoded(password, salt, &config).unwrap();
+        api.debug(&format!("Round {r} done"));
+    }
+
+    api.debug("Work completed, bye");
+    Ok(Response::default())
+}
+
 #[entry_point]
-pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<QueryResponse> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<QueryResponse> {
     use QueryMsg::*;
 
     match msg {
         MirrorEnv {} => to_binary(&query_mirror_env(env)),
+        Denoms {} => to_binary(&query_denoms(deps)?),
+        Denom { denom } => to_binary(&query_denom(deps, denom)?),
     }
 }
 
 fn query_mirror_env(env: Env) -> Env {
     env
+}
+
+fn query_denoms(deps: Deps) -> StdResult<Vec<DenomMetadata>> {
+    const PAGE_SIZE: u32 = 10;
+    let mut next_key = None;
+    let mut all_metadata = Vec::new();
+    loop {
+        let page = deps.querier.query_all_denom_metadata(PageRequest {
+            key: next_key,
+            limit: PAGE_SIZE,
+            reverse: false,
+        })?;
+
+        let len = page.metadata.len() as u32;
+        all_metadata.extend(page.metadata.into_iter());
+        next_key = page.next_key;
+
+        if next_key.is_none() || len < PAGE_SIZE {
+            break;
+        }
+    }
+
+    Ok(all_metadata)
+}
+
+fn query_denom(deps: Deps, denom: String) -> StdResult<DenomMetadata> {
+    deps.querier.query_denom_metadata(denom)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{from_binary, DenomMetadata, DenomUnit, OwnedDeps};
+
+    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+        let mut deps = mock_dependencies();
+        let msg = Empty {};
+        let info = mock_info("creator", &[]);
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(0, res.messages.len());
+        deps
+    }
+
+    #[test]
+    fn instantiate_works() {
+        setup();
+    }
+
+    #[test]
+    fn debug_works() {
+        let mut deps = setup();
+
+        let msg = ExecuteMsg::Debug {};
+        execute(deps.as_mut(), mock_env(), mock_info("caller", &[]), msg).unwrap();
+    }
+
+    #[test]
+    fn query_denoms_works() {
+        let mut deps = setup();
+
+        deps.querier.set_denom_metadata(
+            &(0..98)
+                .map(|i| DenomMetadata {
+                    symbol: format!("FOO{i}"),
+                    name: "Foo".to_string(),
+                    description: "Foo coin".to_string(),
+                    denom_units: vec![DenomUnit {
+                        denom: "ufoo".to_string(),
+                        exponent: 8,
+                        aliases: vec!["microfoo".to_string(), "foobar".to_string()],
+                    }],
+                    display: "FOO".to_string(),
+                    base: format!("ufoo{i}"),
+                    uri: "https://foo.bar".to_string(),
+                    uri_hash: "foo".to_string(),
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        let symbols: Vec<DenomMetadata> =
+            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Denoms {}).unwrap()).unwrap();
+
+        assert_eq!(symbols.len(), 98);
+
+        let denom: DenomMetadata = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Denom {
+                    denom: "ufoo0".to_string(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(denom.symbol, "FOO0");
+    }
 }

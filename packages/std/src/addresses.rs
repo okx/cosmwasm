@@ -284,7 +284,7 @@ impl CanonicalAddr {
 impl fmt::Display for CanonicalAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in self.0.as_slice() {
-            write!(f, "{:02X}", byte)?;
+            write!(f, "{byte:02X}")?;
         }
         Ok(())
     }
@@ -351,7 +351,10 @@ pub fn instantiate2_address(
     creator: &CanonicalAddr,
     salt: &[u8],
 ) -> Result<CanonicalAddr, Instantiate2AddressError> {
-    instantiate2_address_impl(checksum, creator, salt, b"")
+    // Non-empty msg values are discouraged.
+    // See https://medium.com/cosmwasm/dev-note-3-limitations-of-instantiate2-and-how-to-deal-with-them-a3f946874230.
+    let msg = b"";
+    instantiate2_address_impl(checksum, creator, salt, msg)
 }
 
 /// The instantiate2 address derivation implementation. This API is used for
@@ -429,7 +432,7 @@ mod tests {
     #[test]
     fn addr_implements_display() {
         let addr = Addr::unchecked("cos934gh9034hg04g0h134");
-        let embedded = format!("Address: {}", addr);
+        let embedded = format!("Address: {addr}");
         assert_eq!(embedded, "Address: cos934gh9034hg04g0h134");
         assert_eq!(addr.to_string(), "cos934gh9034hg04g0h134");
     }
@@ -626,7 +629,7 @@ mod tests {
             0xff,
         ];
         let address = CanonicalAddr::from(bytes);
-        let embedded = format!("Address: {}", address);
+        let embedded = format!("Address: {address}");
         assert_eq!(embedded, "Address: 1203AB00FF");
         assert_eq!(address.to_string(), "1203AB00FF");
     }

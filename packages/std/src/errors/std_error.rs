@@ -488,7 +488,7 @@ pub enum OverflowOperation {
 
 impl fmt::Display for OverflowOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -557,6 +557,15 @@ impl DivideByZeroError {
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
+pub enum DivisionError {
+    #[error("Divide by zero")]
+    DivideByZero,
+
+    #[error("Overflow in division")]
+    Overflow,
+}
+
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum CheckedMultiplyFractionError {
     #[error("{0}")]
     DivideByZero(#[from] DivideByZeroError),
@@ -590,6 +599,40 @@ pub enum CheckedFromRatioError {
 #[error("Round up operation failed because of overflow")]
 pub struct RoundUpOverflowError;
 
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum CoinsError {
+    #[error("Duplicate denom")]
+    DuplicateDenom,
+}
+
+impl From<CoinsError> for StdError {
+    fn from(value: CoinsError) -> Self {
+        Self::generic_err(format!("Creating Coins: {value}"))
+    }
+}
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum CoinFromStrError {
+    #[error("Missing denominator")]
+    MissingDenom,
+    #[error("Missing amount or non-digit characters in amount")]
+    MissingAmount,
+    #[error("Invalid amount: {0}")]
+    InvalidAmount(std::num::ParseIntError),
+}
+
+impl From<std::num::ParseIntError> for CoinFromStrError {
+    fn from(value: std::num::ParseIntError) -> Self {
+        Self::InvalidAmount(value)
+    }
+}
+
+impl From<CoinFromStrError> for StdError {
+    fn from(value: CoinFromStrError) -> Self {
+        Self::generic_err(format!("Parsing Coin: {value}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -601,12 +644,12 @@ mod tests {
     #[test]
     fn generic_err_owned() {
         let guess = 7;
-        let error = StdError::generic_err(format!("{} is too low", guess));
+        let error = StdError::generic_err(format!("{guess} is too low"));
         match error {
             StdError::GenericErr { msg, .. } => {
                 assert_eq!(msg, String::from("7 is too low"));
             }
-            e => panic!("unexpected error, {:?}", e),
+            e => panic!("unexpected error, {e:?}"),
         }
     }
 
@@ -616,7 +659,7 @@ mod tests {
         let error = StdError::generic_err("not implemented");
         match error {
             StdError::GenericErr { msg, .. } => assert_eq!(msg, "not implemented"),
-            e => panic!("unexpected error, {:?}", e),
+            e => panic!("unexpected error, {e:?}"),
         }
     }
 
@@ -798,7 +841,7 @@ mod tests {
     #[test]
     fn implements_debug() {
         let error: StdError = StdError::from(OverflowError::new(OverflowOperation::Sub, 3, 5));
-        let embedded = format!("Debug: {:?}", error);
+        let embedded = format!("Debug: {error:?}");
         #[cfg(not(feature = "backtraces"))]
         let expected = r#"Debug: Overflow { source: OverflowError { operation: Sub, operand1: "3", operand2: "5" } }"#;
         #[cfg(feature = "backtraces")]
@@ -809,7 +852,7 @@ mod tests {
     #[test]
     fn implements_display() {
         let error: StdError = StdError::from(OverflowError::new(OverflowOperation::Sub, 3, 5));
-        let embedded = format!("Display: {}", error);
+        let embedded = format!("Display: {error}");
         assert_eq!(embedded, "Display: Overflow: Cannot Sub with 3 and 5");
     }
 
@@ -837,7 +880,7 @@ mod tests {
             StdError::InvalidUtf8 { msg, .. } => {
                 assert_eq!(msg, "invalid utf-8 sequence of 3 bytes from index 6")
             }
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
     }
 
@@ -850,7 +893,7 @@ mod tests {
             StdError::InvalidUtf8 { msg, .. } => {
                 assert_eq!(msg, "invalid utf-8 sequence of 3 bytes from index 6")
             }
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
     }
 }

@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use wasmer::{Engine, NativeEngineExt};
 
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
@@ -13,10 +14,10 @@ use crate::environment::InternalCallParam;
 use crate::errors::{VmError, VmResult};
 use crate::filesystem::mkdir_p;
 use crate::instance::{Instance, InstanceOptions};
-use crate::modules::{FileSystemCache, InMemoryCache, PinnedMemoryCache};
+use crate::modules::{CachedModule, FileSystemCache, InMemoryCache, PinnedMemoryCache};
 use crate::size::Size;
 use crate::static_analysis::{deserialize_wasm, has_ibc_entry_points};
-use crate::wasm_backend::{compile, make_runtime_store};
+use crate::wasm_backend::{compile, make_store_with_engine};
 
 const STATE_DIR: &str = "state";
 // Things related to the state of the blockchain.
@@ -126,8 +127,8 @@ where
         mkdir_p(&cache_path).map_err(|_e| VmError::cache_err("Error creating cache directory"))?;
         mkdir_p(&wasm_path).map_err(|_e| VmError::cache_err("Error creating wasm directory"))?;
 
-        let fs_cache = FileSystemCache::new(cache_path.join(MODULES_DIR))
-            .map_err(|e| VmError::cache_err(format!("Error file system cache: {}", e)))?;
+        let fs_cache = FileSystemCache::new(cache_path.join(MODULES_DIR), false)
+            .map_err(|e| VmError::cache_err(format!("Error file system cache: {e}")))?;
         Ok(Cache {
             available_capabilities,
             inner: Mutex::new(CacheInner {
@@ -145,6 +146,16 @@ where
         })
     }
 
+    /// If `unchecked` is true, the filesystem cache will use the `*_unchecked` wasmer functions for
+    /// loading modules from disk.
+    pub fn set_module_unchecked(&mut self, unchecked: bool) {
+        self.inner
+            .lock()
+            .unwrap()
+            .fs_cache
+            .set_module_unchecked(unchecked);
+    }
+
     pub fn stats(&self) -> Stats {
         self.inner.lock().unwrap().stats
     }
@@ -160,9 +171,28 @@ where
         }
     }
 
+    /// Takes a Wasm bytecode and stores it to the cache.
+    ///
+    /// This performs static checks, compiles the bytescode to a module and
+    /// stores the Wasm file on disk.
+    ///
+    /// This does the same as [`save_wasm_unchecked`] plus the static checks.
+    /// When a Wasm blob is stored the first time, use this function.
     pub fn save_wasm(&self, wasm: &[u8]) -> VmResult<Checksum> {
         check_wasm(wasm, &self.available_capabilities)?;
-        let module = compile(wasm, None, &[])?;
+        self.save_wasm_unchecked(wasm)
+    }
+
+    /// Takes a Wasm bytecode and stores it to the cache.
+    ///
+    /// This compiles the bytescode to a module and
+    /// stores the Wasm file on disk.
+    ///
+    /// This does the same as [`save_wasm`] but without the static checks.
+    /// When a Wasm blob is stored which was previously checked (e.g. as part of state sync),
+    /// use this function.
+    pub fn save_wasm_unchecked(&self, wasm: &[u8]) -> VmResult<Checksum> {
+        let (_engine, module) = compile(wasm, &[])?;
 
         let mut cache = self.inner.lock().unwrap();
         let checksum = save_wasm_to_disk(&cache.wasm_path, wasm)?;
@@ -224,43 +254,40 @@ where
 
     /// Pins a Module that was previously stored via save_wasm.
     ///
-    /// The module is lookup first in the memory cache, and then in the file system cache.
-    /// If not found, the code is loaded from the file system, compiled, and stored into the
+    /// The module is lookup first in the file system cache. If not found,
+    /// the code is loaded from the file system, compiled, and stored into the
     /// pinned cache.
-    /// If the given ID is not found, or the content does not match the hash (=ID), an error is returned.
+    ///
+    /// If the given contract for the given checksum is not found, or the content
+    /// does not match the checksum, an error is returned.
     pub fn pin(&self, checksum: &Checksum) -> VmResult<()> {
         let mut cache = self.inner.lock().unwrap();
         if cache.pinned_memory_cache.has(checksum) {
             return Ok(());
         }
 
-        // Try to get module from the memory cache
-        if let Some(module) = cache.memory_cache.load(checksum)? {
-            cache.stats.hits_memory_cache = cache.stats.hits_memory_cache.saturating_add(1);
-            return cache
-                .pinned_memory_cache
-                .store(checksum, module.module, module.size);
-        }
+        // We don't load from the memory cache because we had to create new store here and
+        // serialize/deserialize the artifact to get a full clone. Could be done but adds some code
+        // for a not-so-relevant use case.
 
         // Try to get module from file system cache
-        let store = make_runtime_store(Some(cache.instance_memory_limit));
-        if let Some(module) = cache.fs_cache.load(checksum, &store)? {
+        let engine = Engine::headless();
+        if let Some((module, module_size)) = cache.fs_cache.load(checksum, &engine)? {
             cache.stats.hits_fs_cache = cache.stats.hits_fs_cache.saturating_add(1);
-            let module_size = loupe::size_of_val(&module);
             return cache
                 .pinned_memory_cache
-                .store(checksum, module, module_size);
+                .store(checksum, (engine, module), module_size);
         }
 
         // Re-compile from original Wasm bytecode
         let code = self.load_wasm_with_path(&cache.wasm_path, checksum)?;
-        let module = compile(&code, Some(cache.instance_memory_limit), &[])?;
+        cache.stats.misses = cache.stats.misses.saturating_add(1);
+        let (engine, module) = compile(&code, &[])?;
         // Store into the fs cache too
-        cache.fs_cache.store(checksum, &module)?;
-        let module_size = loupe::size_of_val(&module);
+        let module_size = cache.fs_cache.store(checksum, &module)?;
         cache
             .pinned_memory_cache
-            .store(checksum, module, module_size)
+            .store(checksum, (engine, module), module_size)
     }
 
     /// Unpins a Module, i.e. removes it from the pinned memory cache.
@@ -284,9 +311,11 @@ where
         backend: Backend<A, S, Q>,
         options: InstanceOptions,
     ) -> VmResult<Instance<A, S, Q>> {
-        let module = self.get_module(checksum)?;
+        let (cached, memory_limit, _from_pinned) = self.get_module(checksum)?;
+        let store = make_store_with_engine(cached.engine, Some(memory_limit));
         let instance = Instance::from_module(
-            &module,
+            store,
+            &cached.module,
             backend,
             options.gas_limit,
             options.print_debug,
@@ -320,30 +349,35 @@ where
     /// Returns a module tied to a previously saved Wasm.
     /// Depending on availability, this is either generated from a memory cache, file system cache or Wasm code.
     /// This is part of `get_instance` but pulled out to reduce the locking time.
-    fn get_module(&self, checksum: &Checksum) -> VmResult<wasmer::Module> {
+    fn get_module(&self, checksum: &Checksum) -> VmResult<(CachedModule, Size, bool)> {
         let mut cache = self.inner.lock().unwrap();
         // Try to get module from the pinned memory cache
-        if let Some(module) = cache.pinned_memory_cache.load(checksum)? {
+        if let Some(element) = cache.pinned_memory_cache.load(checksum)? {
             cache.stats.hits_pinned_memory_cache =
                 cache.stats.hits_pinned_memory_cache.saturating_add(1);
-            return Ok(module);
+            return Ok((element, cache.instance_memory_limit, true));
         }
 
         // Get module from memory cache
-        if let Some(module) = cache.memory_cache.load(checksum)? {
+        if let Some(element) = cache.memory_cache.load(checksum)? {
             cache.stats.hits_memory_cache = cache.stats.hits_memory_cache.saturating_add(1);
-            return Ok(module.module);
+            return Ok((element, cache.instance_memory_limit, false));
         }
 
         // Get module from file system cache
-        let store = make_runtime_store(Some(cache.instance_memory_limit));
-        if let Some(module) = cache.fs_cache.load(checksum, &store)? {
+        let engine = Engine::headless();
+        if let Some((module, module_size)) = cache.fs_cache.load(checksum, &engine)? {
             cache.stats.hits_fs_cache = cache.stats.hits_fs_cache.saturating_add(1);
-            let module_size = loupe::size_of_val(&module);
+
             cache
                 .memory_cache
-                .store(checksum, module.clone(), module_size)?;
-            return Ok(module);
+                .store(checksum, (engine.clone(), module.clone()), module_size)?;
+            let cached = CachedModule {
+                engine,
+                module,
+                size: module_size,
+            };
+            return Ok((cached, cache.instance_memory_limit, false));
         }
 
         // Re-compile module from wasm
@@ -353,13 +387,18 @@ where
         // stored the old module format.
         let wasm = self.load_wasm_with_path(&cache.wasm_path, checksum)?;
         cache.stats.misses = cache.stats.misses.saturating_add(1);
-        let module = compile(&wasm, Some(cache.instance_memory_limit), &[])?;
-        cache.fs_cache.store(checksum, &module)?;
-        let module_size = loupe::size_of_val(&module);
+        let (engine, module) = compile(&wasm, &[])?;
+        let module_size = cache.fs_cache.store(checksum, &module)?;
+
         cache
             .memory_cache
-            .store(checksum, module.clone(), module_size)?;
-        Ok(module)
+            .store(checksum, (engine.clone(), module.clone()), module_size)?;
+        let cached = CachedModule {
+            engine,
+            module,
+            size: module_size,
+        };
+        Ok((cached, cache.instance_memory_limit, false))
     }
 }
 
@@ -386,7 +425,7 @@ fn save_wasm_to_disk(dir: impl Into<PathBuf>, wasm: &[u8]) -> VmResult<Checksum>
     // calculate filename
     let checksum = Checksum::generate(wasm);
     let filename = checksum.to_hex();
-    let filepath = dir.into().join(filename);
+    let filepath = dir.into().join(filename).with_extension("wasm");
 
     // write data to file
     // Since the same filename (a collision resistent hash) cannot be generated from two different byte codes
@@ -395,18 +434,21 @@ fn save_wasm_to_disk(dir: impl Into<PathBuf>, wasm: &[u8]) -> VmResult<Checksum>
         .write(true)
         .create(true)
         .open(filepath)
-        .map_err(|e| VmError::cache_err(format!("Error opening Wasm file for writing: {}", e)))?;
+        .map_err(|e| VmError::cache_err(format!("Error opening Wasm file for writing: {e}")))?;
     file.write_all(wasm)
-        .map_err(|e| VmError::cache_err(format!("Error writing Wasm file: {}", e)))?;
+        .map_err(|e| VmError::cache_err(format!("Error writing Wasm file: {e}")))?;
 
     Ok(checksum)
 }
 
 fn load_wasm_from_disk(dir: impl Into<PathBuf>, checksum: &Checksum) -> VmResult<Vec<u8>> {
     // this requires the directory and file to exist
+    // The files previously had no extension, so to allow for a smooth transition,
+    // we also try to load the file without the wasm extension.
     let path = dir.into().join(checksum.to_hex());
-    let mut file =
-        File::open(path).map_err(|_e| VmError::cache_err("Error opening Wasm file for reading"))?;
+    let mut file = File::open(path.with_extension("wasm"))
+        .or_else(|_| File::open(path))
+        .map_err(|_e| VmError::cache_err("Error opening Wasm file for reading"))?;
 
     let mut wasm = Vec::<u8>::new();
     file.read_to_end(&mut wasm)
@@ -420,13 +462,25 @@ fn load_wasm_from_disk(dir: impl Into<PathBuf>, checksum: &Checksum) -> VmResult
 /// code is required. So a non-existent file leads to an error as it
 /// indicates a bug.
 fn remove_wasm_from_disk(dir: impl Into<PathBuf>, checksum: &Checksum) -> VmResult<()> {
+    // the files previously had no extension, so to allow for a smooth transition, we delete both
     let path = dir.into().join(checksum.to_hex());
+    let wasm_path = path.with_extension("wasm");
 
-    if !path.exists() {
+    let path_exists = path.exists();
+    let wasm_path_exists = wasm_path.exists();
+    if !path_exists && !wasm_path_exists {
         return Err(VmError::cache_err("Wasm file does not exist"));
     }
 
-    fs::remove_file(path).map_err(|_e| VmError::cache_err("Error removing Wasm file from disk"))?;
+    if path_exists {
+        fs::remove_file(path)
+            .map_err(|_e| VmError::cache_err("Error removing Wasm file from disk"))?;
+    }
+
+    if wasm_path_exists {
+        fs::remove_file(wasm_path)
+            .map_err(|_e| VmError::cache_err("Error removing Wasm file from disk"))?;
+    }
 
     Ok(())
 }
@@ -439,7 +493,7 @@ mod tests {
     use crate::errors::VmError;
     use crate::testing::{mock_backend, mock_env, mock_info, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{coins, Empty};
-    use std::fs::{create_dir_all, OpenOptions};
+    use std::fs::{create_dir_all, remove_dir_all, OpenOptions};
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -453,6 +507,14 @@ mod tests {
 
     static CONTRACT: &[u8] = include_bytes!("../testdata/hackatom.wasm");
     static IBC_CONTRACT: &[u8] = include_bytes!("../testdata/ibc_reflect.wasm");
+    // Invalid because it doesn't contain required memory and exports
+    static INVALID_CONTRACT_WAT: &str = r#"(module
+        (type $t0 (func (param i32) (result i32)))
+        (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
+            get_local $p0
+            i32.const 1
+            i32.add))
+    "#;
 
     fn default_capabilities() -> HashSet<String> {
         capabilities_from_csv("iterator,staking")
@@ -511,17 +573,7 @@ mod tests {
 
     #[test]
     fn save_wasm_rejects_invalid_contract() {
-        // Invalid because it doesn't contain required memory and exports
-        let wasm = wat::parse_str(
-            r#"(module
-            (type $t0 (func (param i32) (result i32)))
-            (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
-              get_local $p0
-              i32.const 1
-              i32.add))
-            "#,
-        )
-        .unwrap();
+        let wasm = wat::parse_str(INVALID_CONTRACT_WAT).unwrap();
 
         let cache: Cache<MockApi, MockStorage, MockQuerier> =
             unsafe { Cache::new(make_testing_options()).unwrap() };
@@ -530,7 +582,7 @@ mod tests {
             VmError::StaticValidationErr { msg, .. } => {
                 assert_eq!(msg, "Wasm contract doesn\'t have a memory section")
             }
-            e => panic!("Unexpected error {:?}", e),
+            e => panic!("Unexpected error {e:?}"),
         }
     }
 
@@ -550,6 +602,22 @@ mod tests {
         assert_eq!(cache.stats().hits_memory_cache, 0);
         assert_eq!(cache.stats().hits_fs_cache, 1);
         assert_eq!(cache.stats().misses, 0);
+    }
+
+    #[test]
+    fn save_wasm_unchecked_works() {
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(make_testing_options()).unwrap() };
+        cache.save_wasm_unchecked(CONTRACT).unwrap();
+    }
+
+    #[test]
+    fn save_wasm_unchecked_accepts_invalid_contract() {
+        let wasm = wat::parse_str(INVALID_CONTRACT_WAT).unwrap();
+
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(make_testing_options()).unwrap() };
+        cache.save_wasm_unchecked(&wasm).unwrap();
     }
 
     #[test]
@@ -606,7 +674,7 @@ mod tests {
             VmError::CacheErr { msg, .. } => {
                 assert_eq!(msg, "Error opening Wasm file for reading")
             }
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -628,14 +696,15 @@ mod tests {
             .path()
             .join(STATE_DIR)
             .join(WASM_DIR)
-            .join(checksum.to_hex());
+            .join(checksum.to_hex())
+            .with_extension("wasm");
         let mut file = OpenOptions::new().write(true).open(filepath).unwrap();
         file.write_all(b"broken data").unwrap();
 
         let res = cache.load_wasm(&checksum);
         match res {
             Err(VmError::IntegrityErr { .. }) => {}
-            Err(e) => panic!("Unexpected error: {:?}", e),
+            Err(e) => panic!("Unexpected error: {e:?}"),
             Ok(_) => panic!("This must not succeed"),
         }
     }
@@ -659,7 +728,7 @@ mod tests {
             VmError::CacheErr { msg, .. } => {
                 assert_eq!(msg, "Error opening Wasm file for reading")
             }
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
 
         // Removing again fails
@@ -667,7 +736,7 @@ mod tests {
             VmError::CacheErr { msg, .. } => {
                 assert_eq!(msg, "Wasm file does not exist")
             }
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 
@@ -722,11 +791,11 @@ mod tests {
         assert_eq!(cache.stats().hits_fs_cache, 1);
         assert_eq!(cache.stats().misses, 0);
 
-        // pinning hits the memory cache
+        // pinning hits the file system cache
         cache.pin(&checksum).unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
-        assert_eq!(cache.stats().hits_memory_cache, 3);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 2);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
 
         // from pinned memory cache
@@ -734,8 +803,8 @@ mod tests {
             .get_instance(&checksum, backend4, TESTING_OPTIONS)
             .unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
-        assert_eq!(cache.stats().hits_memory_cache, 3);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 2);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
 
         // from pinned memory cache again
@@ -743,9 +812,39 @@ mod tests {
             .get_instance(&checksum, backend5, TESTING_OPTIONS)
             .unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 2);
-        assert_eq!(cache.stats().hits_memory_cache, 3);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 2);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
+    }
+
+    #[test]
+    fn get_instance_recompiles_module() {
+        let options = make_testing_options();
+        let cache = unsafe { Cache::new(options.clone()).unwrap() };
+        let checksum = cache.save_wasm(CONTRACT).unwrap();
+
+        // Remove compiled module from disk
+        remove_dir_all(options.base_dir.join(CACHE_DIR).join(MODULES_DIR)).unwrap();
+
+        // The first get_instance recompiles the Wasm (miss)
+        let backend = mock_backend(&[]);
+        let _instance = cache
+            .get_instance(&checksum, backend, TESTING_OPTIONS)
+            .unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
+
+        // The second get_instance finds the module in cache (hit)
+        let backend = mock_backend(&[]);
+        let _instance = cache
+            .get_instance(&checksum, backend, TESTING_OPTIONS)
+            .unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
+        assert_eq!(cache.stats().hits_memory_cache, 1);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
     }
 
     #[test]
@@ -799,8 +898,8 @@ mod tests {
                 .get_instance(&checksum, mock_backend(&[]), TESTING_OPTIONS)
                 .unwrap();
             assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
-            assert_eq!(cache.stats().hits_memory_cache, 2);
-            assert_eq!(cache.stats().hits_fs_cache, 1);
+            assert_eq!(cache.stats().hits_memory_cache, 1);
+            assert_eq!(cache.stats().hits_fs_cache, 2);
             assert_eq!(cache.stats().misses, 0);
 
             // init
@@ -882,8 +981,8 @@ mod tests {
                 .get_instance(&checksum, mock_backend(&[]), TESTING_OPTIONS)
                 .unwrap();
             assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
-            assert_eq!(cache.stats().hits_memory_cache, 2);
-            assert_eq!(cache.stats().hits_fs_cache, 1);
+            assert_eq!(cache.stats().hits_memory_cache, 1);
+            assert_eq!(cache.stats().hits_fs_cache, 2);
             assert_eq!(cache.stats().misses, 0);
 
             // init
@@ -986,7 +1085,7 @@ mod tests {
         assert!(instance1.get_gas_left() < original_gas);
 
         // Init from memory cache
-        let instance2 = cache
+        let mut instance2 = cache
             .get_instance(&checksum, backend2, TESTING_OPTIONS)
             .unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
@@ -1020,7 +1119,7 @@ mod tests {
             .unwrap_err()
         {
             VmError::GasDepletion { .. } => (), // all good, continue
-            e => panic!("unexpected error, {:?}", e),
+            e => panic!("unexpected error, {e:?}"),
         }
         assert_eq!(instance1.get_gas_left(), 0);
 
@@ -1099,7 +1198,7 @@ mod tests {
 
         match remove_wasm_from_disk(path, &checksum).unwrap_err() {
             VmError::CacheErr { msg } => assert_eq!(msg, "Wasm file does not exist"),
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
     }
 
@@ -1147,18 +1246,18 @@ mod tests {
         assert_eq!(cache.stats().hits_fs_cache, 1);
         assert_eq!(cache.stats().misses, 0);
 
-        // first pin hits memory cache
+        // first pin hits file system cache
         cache.pin(&checksum).unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
-        assert_eq!(cache.stats().hits_memory_cache, 1);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
 
         // consecutive pins are no-ops
         cache.pin(&checksum).unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
-        assert_eq!(cache.stats().hits_memory_cache, 1);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
 
         // check pinned
@@ -1167,8 +1266,8 @@ mod tests {
             .get_instance(&checksum, backend, TESTING_OPTIONS)
             .unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
-        assert_eq!(cache.stats().hits_memory_cache, 1);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
 
         // unpin
@@ -1180,8 +1279,8 @@ mod tests {
             .get_instance(&checksum, backend, TESTING_OPTIONS)
             .unwrap();
         assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
-        assert_eq!(cache.stats().hits_memory_cache, 2);
-        assert_eq!(cache.stats().hits_fs_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 1);
+        assert_eq!(cache.stats().hits_fs_cache, 2);
         assert_eq!(cache.stats().misses, 0);
 
         // unpin again has no effect
@@ -1190,5 +1289,60 @@ mod tests {
         // unpin non existent id has no effect
         let non_id = Checksum::generate(b"non_existent");
         cache.unpin(&non_id).unwrap();
+    }
+
+    #[test]
+    fn pin_recompiles_module() {
+        let options = make_testing_options();
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(options.clone()).unwrap() };
+        let checksum = cache.save_wasm(CONTRACT).unwrap();
+
+        // Remove compiled module from disk
+        remove_dir_all(options.base_dir.join(CACHE_DIR).join(MODULES_DIR)).unwrap();
+
+        // Pin misses, forcing a re-compile of the module
+        cache.pin(&checksum).unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 0);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
+
+        // After the compilation in pin, the module can be used from pinned memory cache
+        let backend = mock_backend(&[]);
+        let _ = cache
+            .get_instance(&checksum, backend, TESTING_OPTIONS)
+            .unwrap();
+        assert_eq!(cache.stats().hits_pinned_memory_cache, 1);
+        assert_eq!(cache.stats().hits_memory_cache, 0);
+        assert_eq!(cache.stats().hits_fs_cache, 0);
+        assert_eq!(cache.stats().misses, 1);
+    }
+
+    #[test]
+    fn loading_without_extension_works() {
+        let tmp_dir = TempDir::new().unwrap();
+        let options = CacheOptions {
+            base_dir: tmp_dir.path().to_path_buf(),
+            available_capabilities: default_capabilities(),
+            memory_cache_size: TESTING_MEMORY_CACHE_SIZE,
+            instance_memory_limit: TESTING_MEMORY_LIMIT,
+        };
+        let cache: Cache<MockApi, MockStorage, MockQuerier> =
+            unsafe { Cache::new(options).unwrap() };
+        let checksum = cache.save_wasm(CONTRACT).unwrap();
+
+        // Move the saved wasm to the old path (without extension)
+        let old_path = tmp_dir
+            .path()
+            .join(STATE_DIR)
+            .join(WASM_DIR)
+            .join(checksum.to_hex());
+        let new_path = old_path.with_extension("wasm");
+        fs::rename(new_path, old_path).unwrap();
+
+        // loading wasm from before the wasm extension was added should still work
+        let restored = cache.load_wasm(&checksum).unwrap();
+        assert_eq!(restored, CONTRACT);
     }
 }

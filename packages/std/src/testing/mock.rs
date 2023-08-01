@@ -1,8 +1,10 @@
 use serde::de::DeserializeOwned;
 #[cfg(feature = "stargate")]
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
+#[cfg(feature = "cosmwasm_1_3")]
+use std::ops::Bound;
 
 use crate::addresses::{Addr, CanonicalAddr};
 use crate::binary::Binary;
@@ -26,13 +28,20 @@ use crate::query::{
     AllDelegationsResponse, AllValidatorsResponse, BondedDenomResponse, DelegationResponse,
     FullDelegation, StakingQuery, Validator, ValidatorResponse,
 };
+#[cfg(feature = "cosmwasm_1_3")]
+use crate::query::{DelegatorWithdrawAddressResponse, DistributionQuery};
 use crate::results::{ContractResult, Empty, SystemResult};
 use crate::serde::{from_slice, to_binary};
 use crate::storage::MemoryStorage;
 use crate::timestamp::Timestamp;
 use crate::traits::{Api, Querier, QuerierResult};
 use crate::types::{BlockInfo, ContractInfo, Env, MessageInfo, TransactionInfo};
-use crate::{Attribute, WasmMsg};
+#[cfg(feature = "cosmwasm_1_3")]
+use crate::{
+    query::{AllDenomMetadataResponse, DenomMetadataResponse},
+    PageRequest,
+};
+use crate::{Attribute, DenomMetadata, WasmMsg};
 #[cfg(feature = "stargate")]
 use crate::{ChannelResponse, IbcQuery, ListChannelsResponse, PortIdResponse};
 
@@ -258,7 +267,7 @@ impl Api for MockApi {
     }
 
     fn debug(&self, message: &str) {
-        println!("{}", message);
+        println!("{message}");
     }
 }
 
@@ -468,6 +477,8 @@ pub struct MockQuerier<C: DeserializeOwned = Empty> {
     bank: BankQuerier,
     #[cfg(feature = "staking")]
     staking: StakingQuerier,
+    #[cfg(feature = "cosmwasm_1_3")]
+    distribution: DistributionQuerier,
     wasm: WasmQuerier,
     #[cfg(feature = "stargate")]
     ibc: IbcQuerier,
@@ -482,6 +493,8 @@ impl<C: DeserializeOwned> MockQuerier<C> {
     pub fn new(balances: &[(&str, &[Coin])]) -> Self {
         MockQuerier {
             bank: BankQuerier::new(balances),
+            #[cfg(feature = "cosmwasm_1_3")]
+            distribution: DistributionQuerier::default(),
             #[cfg(feature = "staking")]
             staking: StakingQuerier::default(),
             wasm: WasmQuerier::default(),
@@ -503,6 +516,37 @@ impl<C: DeserializeOwned> MockQuerier<C> {
         balance: Vec<Coin>,
     ) -> Option<Vec<Coin>> {
         self.bank.update_balance(addr, balance)
+    }
+
+    pub fn set_denom_metadata(&mut self, denom_metadata: &[DenomMetadata]) {
+        self.bank.set_denom_metadata(denom_metadata);
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    pub fn set_withdraw_address(
+        &mut self,
+        delegator_address: impl Into<String>,
+        withdraw_address: impl Into<String>,
+    ) {
+        self.distribution
+            .set_withdraw_address(delegator_address, withdraw_address);
+    }
+
+    /// Sets multiple withdraw addresses.
+    ///
+    /// This allows passing multiple tuples of `(delegator_address, withdraw_address)`.
+    /// It does not overwrite existing entries.
+    #[cfg(feature = "cosmwasm_1_3")]
+    pub fn set_withdraw_addresses(
+        &mut self,
+        withdraw_addresses: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) {
+        self.distribution.set_withdraw_addresses(withdraw_addresses);
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    pub fn clear_withdraw_addresses(&mut self) {
+        self.distribution.clear_withdraw_addresses();
     }
 
     #[cfg(feature = "staking")]
@@ -548,7 +592,7 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
-                    error: format!("Parsing query request: {}", e),
+                    error: format!("Parsing query request: {e}"),
                     request: bin_request.into(),
                 })
             }
@@ -564,6 +608,10 @@ impl<C: CustomQuery + DeserializeOwned> MockQuerier<C> {
             QueryRequest::Custom(custom_query) => (*self.custom_handler)(custom_query),
             #[cfg(feature = "staking")]
             QueryRequest::Staking(staking_query) => self.staking.query(staking_query),
+            #[cfg(feature = "cosmwasm_1_3")]
+            QueryRequest::Distribution(distribution_query) => {
+                self.distribution.query(distribution_query)
+            }
             QueryRequest::Wasm(msg) => self.wasm.query(msg),
             #[cfg(feature = "stargate")]
             QueryRequest::Stargate { .. } => SystemResult::Err(SystemError::UnsupportedRequest {
@@ -631,6 +679,8 @@ pub struct BankQuerier {
     supplies: HashMap<String, Uint128>,
     /// HashMap<address, coins>
     balances: HashMap<String, Vec<Coin>>,
+    /// Vec<Metadata>
+    denom_metadata: BTreeMap<Vec<u8>, DenomMetadata>,
 }
 
 impl BankQuerier {
@@ -643,6 +693,7 @@ impl BankQuerier {
         BankQuerier {
             supplies: Self::calculate_supplies(&balances),
             balances,
+            denom_metadata: BTreeMap::new(),
         }
     }
 
@@ -655,6 +706,13 @@ impl BankQuerier {
         self.supplies = Self::calculate_supplies(&self.balances);
 
         result
+    }
+
+    pub fn set_denom_metadata(&mut self, denom_metadata: &[DenomMetadata]) {
+        self.denom_metadata = denom_metadata
+            .iter()
+            .map(|d| (d.base.as_bytes().to_vec(), d.clone()))
+            .collect();
     }
 
     fn calculate_supplies(balances: &HashMap<String, Vec<Coin>>) -> HashMap<String, Uint128> {
@@ -709,6 +767,59 @@ impl BankQuerier {
                     amount: self.balances.get(address).cloned().unwrap_or_default(),
                 };
                 to_binary(&bank_res).into()
+            }
+            #[cfg(feature = "cosmwasm_1_3")]
+            BankQuery::DenomMetadata { denom } => {
+                let denom_metadata = self.denom_metadata.get(denom.as_bytes());
+                match denom_metadata {
+                    Some(m) => {
+                        let metadata_res = DenomMetadataResponse {
+                            metadata: m.clone(),
+                        };
+                        to_binary(&metadata_res).into()
+                    }
+                    None => return SystemResult::Err(SystemError::Unknown {}),
+                }
+            }
+            #[cfg(feature = "cosmwasm_1_3")]
+            BankQuery::AllDenomMetadata { pagination } => {
+                let default_pagination = PageRequest {
+                    key: None,
+                    limit: 100,
+                    reverse: false,
+                };
+                let pagination = pagination.as_ref().unwrap_or(&default_pagination);
+
+                // range of all denoms after the given key (or until the key for reverse)
+                let range = match (pagination.reverse, &pagination.key) {
+                    (_, None) => (Bound::Unbounded, Bound::Unbounded),
+                    (true, Some(key)) => (Bound::Unbounded, Bound::Included(key.as_slice())),
+                    (false, Some(key)) => (Bound::Included(key.as_slice()), Bound::Unbounded),
+                };
+                let iter = self.denom_metadata.range::<[u8], _>(range);
+                // using dynamic dispatch here to reduce code duplication and since this is only testing code
+                let iter: Box<dyn Iterator<Item = _>> = if pagination.reverse {
+                    Box::new(iter.rev())
+                } else {
+                    Box::new(iter)
+                };
+
+                let mut metadata: Vec<_> = iter
+                    // take the requested amount + 1 to get the next key
+                    .take((pagination.limit.saturating_add(1)) as usize)
+                    .map(|(_, m)| m.clone())
+                    .collect();
+
+                // if we took more than requested, remove the last element (the next key),
+                // otherwise this is the last batch
+                let next_key = if metadata.len() > pagination.limit as usize {
+                    metadata.pop().map(|m| Binary::from(m.base.as_bytes()))
+                } else {
+                    None
+                };
+
+                let metadata_res = AllDenomMetadataResponse { metadata, next_key };
+                to_binary(&metadata_res).into()
             }
         };
         // system result is always ok in the mock implementation
@@ -851,6 +962,62 @@ impl StakingQuerier {
     }
 }
 
+#[cfg(feature = "cosmwasm_1_3")]
+#[derive(Clone, Default)]
+pub struct DistributionQuerier {
+    withdraw_addresses: HashMap<String, String>,
+}
+
+#[cfg(feature = "cosmwasm_1_3")]
+impl DistributionQuerier {
+    pub fn new(withdraw_addresses: HashMap<String, String>) -> Self {
+        DistributionQuerier { withdraw_addresses }
+    }
+
+    pub fn set_withdraw_address(
+        &mut self,
+        delegator_address: impl Into<String>,
+        withdraw_address: impl Into<String>,
+    ) {
+        self.withdraw_addresses
+            .insert(delegator_address.into(), withdraw_address.into());
+    }
+
+    /// Sets multiple withdraw addresses.
+    ///
+    /// This allows passing multiple tuples of `(delegator_address, withdraw_address)`.
+    /// It does not overwrite existing entries.
+    pub fn set_withdraw_addresses(
+        &mut self,
+        withdraw_addresses: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) {
+        for (d, w) in withdraw_addresses {
+            self.set_withdraw_address(d, w);
+        }
+    }
+
+    pub fn clear_withdraw_addresses(&mut self) {
+        self.withdraw_addresses.clear();
+    }
+
+    pub fn query(&self, request: &DistributionQuery) -> QuerierResult {
+        let contract_result: ContractResult<Binary> = match request {
+            DistributionQuery::DelegatorWithdrawAddress { delegator_address } => {
+                let res = DelegatorWithdrawAddressResponse {
+                    withdraw_address: self
+                        .withdraw_addresses
+                        .get(delegator_address)
+                        .unwrap_or(delegator_address)
+                        .clone(),
+                };
+                to_binary(&res).into()
+            }
+        };
+        // system result is always ok in the mock implementation
+        SystemResult::Ok(contract_result)
+    }
+}
+
 pub fn digit_sum(input: &[u8]) -> usize {
     input.iter().fold(0, |sum, val| sum + (*val as usize))
 }
@@ -867,6 +1034,8 @@ pub fn mock_wasmd_attr(key: impl Into<String>, value: impl Into<String>) -> Attr
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "cosmwasm_1_3")]
+    use crate::DenomUnit;
     use crate::{coin, coins, from_binary, to_binary, ContractInfoResponse, Response};
     #[cfg(feature = "staking")]
     use crate::{Decimal, Delegation};
@@ -1056,7 +1225,7 @@ mod tests {
         let result = api.secp256k1_recover_pubkey(&hash, &signature, 42);
         match result.unwrap_err() {
             RecoverPubkeyError::InvalidRecoveryParam => {}
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
     }
 
@@ -1085,7 +1254,7 @@ mod tests {
         let result = api.secp256k1_recover_pubkey(&malformed_hash, &signature, recovery_param);
         match result.unwrap_err() {
             RecoverPubkeyError::InvalidHashFormat => {}
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
     }
 
@@ -1385,6 +1554,119 @@ mod tests {
             .unwrap();
         let res: BalanceResponse = from_binary(&miss).unwrap();
         assert_eq!(res.amount, coin(0, "ELF"));
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    #[test]
+    fn bank_querier_metadata_works() {
+        let mut bank = BankQuerier::new(&[]);
+        bank.set_denom_metadata(
+            &(0..100)
+                .map(|i| DenomMetadata {
+                    symbol: format!("FOO{i}"),
+                    name: "Foo".to_string(),
+                    description: "Foo coin".to_string(),
+                    denom_units: vec![DenomUnit {
+                        denom: "ufoo".to_string(),
+                        exponent: 8,
+                        aliases: vec!["microfoo".to_string(), "foobar".to_string()],
+                    }],
+                    display: "FOO".to_string(),
+                    base: format!("ufoo{i}"),
+                    uri: "https://foo.bar".to_string(),
+                    uri_hash: "foo".to_string(),
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        // querying first 10 should work
+        let res = bank
+            .query(&BankQuery::AllDenomMetadata {
+                pagination: Some(PageRequest {
+                    key: None,
+                    limit: 10,
+                    reverse: false,
+                }),
+            })
+            .unwrap()
+            .unwrap();
+        let res: AllDenomMetadataResponse = from_binary(&res).unwrap();
+        assert_eq!(res.metadata.len(), 10);
+        assert!(res.next_key.is_some());
+
+        // querying next 10 should also work
+        let res2 = bank
+            .query(&BankQuery::AllDenomMetadata {
+                pagination: Some(PageRequest {
+                    key: res.next_key,
+                    limit: 10,
+                    reverse: false,
+                }),
+            })
+            .unwrap()
+            .unwrap();
+        let res2: AllDenomMetadataResponse = from_binary(&res2).unwrap();
+        assert_eq!(res2.metadata.len(), 10);
+        assert_ne!(res.metadata.last(), res2.metadata.first());
+        // should have no overlap
+        for m in res.metadata {
+            assert!(!res2.metadata.contains(&m));
+        }
+
+        // querying all 100 should work
+        let res = bank
+            .query(&BankQuery::AllDenomMetadata {
+                pagination: Some(PageRequest {
+                    key: None,
+                    limit: 100,
+                    reverse: true,
+                }),
+            })
+            .unwrap()
+            .unwrap();
+        let res: AllDenomMetadataResponse = from_binary(&res).unwrap();
+        assert_eq!(res.metadata.len(), 100);
+        assert!(res.next_key.is_none(), "no more data should be available");
+        assert_eq!(res.metadata[0].symbol, "FOO99", "should have been reversed");
+
+        let more_res = bank
+            .query(&BankQuery::AllDenomMetadata {
+                pagination: Some(PageRequest {
+                    key: res.next_key,
+                    limit: u32::MAX,
+                    reverse: true,
+                }),
+            })
+            .unwrap()
+            .unwrap();
+        let more_res: AllDenomMetadataResponse = from_binary(&more_res).unwrap();
+        assert_eq!(
+            more_res.metadata, res.metadata,
+            "should be same as previous query"
+        );
+    }
+
+    #[cfg(feature = "cosmwasm_1_3")]
+    #[test]
+    fn distribution_querier_delegator_withdraw_address() {
+        let mut distribution = DistributionQuerier::default();
+        distribution.set_withdraw_address("addr0", "withdraw0");
+
+        let query = DistributionQuery::DelegatorWithdrawAddress {
+            delegator_address: "addr0".to_string(),
+        };
+
+        let res = distribution.query(&query).unwrap().unwrap();
+        let res: DelegatorWithdrawAddressResponse = from_binary(&res).unwrap();
+        assert_eq!(res.withdraw_address, "withdraw0");
+
+        let query = DistributionQuery::DelegatorWithdrawAddress {
+            delegator_address: "addr1".to_string(),
+        };
+
+        let res = distribution.query(&query).unwrap().unwrap();
+        let res: DelegatorWithdrawAddressResponse = from_binary(&res).unwrap();
+        assert_eq!(res.withdraw_address, "addr1");
     }
 
     #[cfg(feature = "stargate")]
@@ -1709,7 +1991,7 @@ mod tests {
             .unwrap_err();
         match system_err {
             SystemError::NoSuchContract { addr } => assert_eq!(addr, any_addr),
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
 
         // By default, querier errors for WasmQuery::Smart
@@ -1721,7 +2003,7 @@ mod tests {
             .unwrap_err();
         match system_err {
             SystemError::NoSuchContract { addr } => assert_eq!(addr, any_addr),
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
 
         // By default, querier errors for WasmQuery::ContractInfo
@@ -1732,7 +2014,7 @@ mod tests {
             .unwrap_err();
         match system_err {
             SystemError::NoSuchContract { addr } => assert_eq!(addr, any_addr),
-            err => panic!("Unexpected error: {:?}", err),
+            err => panic!("Unexpected error: {err:?}"),
         }
 
         #[cfg(feature = "cosmwasm_1_2")]
@@ -1743,7 +2025,7 @@ mod tests {
                 .unwrap_err();
             match system_err {
                 SystemError::NoSuchCode { code_id } => assert_eq!(code_id, 4),
-                err => panic!("Unexpected error: {:?}", err),
+                err => panic!("Unexpected error: {err:?}"),
             }
         }
 
@@ -1828,7 +2110,7 @@ mod tests {
         });
         match result {
             SystemResult::Ok(ContractResult::Ok(value)) => assert_eq!(value, b"the value" as &[u8]),
-            res => panic!("Unexpected result: {:?}", res),
+            res => panic!("Unexpected result: {res:?}"),
         }
         let result = querier.query(&WasmQuery::Raw {
             contract_addr: "contract1".into(),
@@ -1836,7 +2118,7 @@ mod tests {
         });
         match result {
             SystemResult::Ok(ContractResult::Ok(value)) => assert_eq!(value, b"" as &[u8]),
-            res => panic!("Unexpected result: {:?}", res),
+            res => panic!("Unexpected result: {res:?}"),
         }
 
         // WasmQuery::Smart
@@ -1849,7 +2131,7 @@ mod tests {
                 value,
                 br#"{"messages":[],"attributes":[],"events":[],"data":"Z29vZA=="}"# as &[u8]
             ),
-            res => panic!("Unexpected result: {:?}", res),
+            res => panic!("Unexpected result: {res:?}"),
         }
         let result = querier.query(&WasmQuery::Smart {
             contract_addr: "contract1".into(),
@@ -1859,7 +2141,7 @@ mod tests {
             SystemResult::Ok(ContractResult::Err(err)) => {
                 assert_eq!(err, "Error parsing into type cosmwasm_std::testing::mock::tests::wasm_querier_works::{{closure}}::MyMsg: Invalid type")
             }
-            res => panic!("Unexpected result: {:?}", res),
+            res => panic!("Unexpected result: {res:?}"),
         }
 
         // WasmQuery::ContractInfo
@@ -1872,7 +2154,7 @@ mod tests {
                 br#"{"code_id":4,"creator":"lalala","admin":null,"pinned":false,"ibc_port":null}"#
                     as &[u8]
             ),
-            res => panic!("Unexpected result: {:?}", res),
+            res => panic!("Unexpected result: {res:?}"),
         }
 
         // WasmQuery::ContractInfo
@@ -1884,7 +2166,7 @@ mod tests {
                     value,
                     br#"{"code_id":4,"creator":"lalala","checksum":"84cf20810fd429caf58898c3210fcb71759a27becddae08dbde8668ea2f4725d"}"#
                 ),
-                res => panic!("Unexpected result: {:?}", res),
+                res => panic!("Unexpected result: {res:?}"),
             }
         }
     }

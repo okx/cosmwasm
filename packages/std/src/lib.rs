@@ -7,6 +7,7 @@ mod addresses;
 mod assertions;
 mod binary;
 mod coin;
+mod coins;
 mod conversion;
 mod deps;
 mod errors;
@@ -17,7 +18,9 @@ mod import_helpers;
 #[cfg(feature = "iterator")]
 mod iterator;
 mod math;
+mod metadata;
 mod never;
+mod pagination;
 mod panic;
 mod query;
 mod results;
@@ -28,9 +31,15 @@ mod timestamp;
 mod traits;
 mod types;
 
+// This modules is very advanced and will not be used directly by the vast majority of users.
+// We want to offer it to ensure a stable storage key composition system but don't encourage
+// contract devs to use it directly.
+pub mod storage_keys;
+
 pub use crate::addresses::{instantiate2_address, Addr, CanonicalAddr, Instantiate2AddressError};
 pub use crate::binary::Binary;
 pub use crate::coin::{coin, coins, has_coins, Coin};
+pub use crate::coins::Coins;
 pub use crate::deps::{Deps, DepsMut, OwnedDeps};
 pub use crate::errors::{
     CheckedFromRatioError, CheckedMultiplyFractionError, CheckedMultiplyRatioError,
@@ -48,10 +57,12 @@ pub use crate::ibc::{
 #[cfg(feature = "iterator")]
 pub use crate::iterator::{Order, Record};
 pub use crate::math::{
-    Decimal, Decimal256, Decimal256RangeExceeded, DecimalRangeExceeded, Fraction, Isqrt, Uint128,
-    Uint256, Uint512, Uint64,
+    Decimal, Decimal256, Decimal256RangeExceeded, DecimalRangeExceeded, Fraction, Int128, Int256,
+    Int512, Int64, Isqrt, Uint128, Uint256, Uint512, Uint64,
 };
+pub use crate::metadata::{DenomMetadata, DenomUnit};
 pub use crate::never::Never;
+pub use crate::pagination::PageRequest;
 #[cfg(feature = "cosmwasm_1_2")]
 pub use crate::query::CodeInfoResponse;
 #[cfg(feature = "cosmwasm_1_1")]
