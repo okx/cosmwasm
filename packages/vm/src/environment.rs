@@ -599,7 +599,6 @@ mod tests {
         Store,
         Box<WasmerInstance>,
     ) {
-
         let mut env = Environment::new(MockApi::default(), gas_limit, false, GasConfigInfo::default());
 
         let (engine, module) = compile(CONTRACT, &[]).unwrap();
