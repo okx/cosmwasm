@@ -113,7 +113,7 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
     let ret = match cache {
         Some(store_cache) => {
             process_gas_info::<A, S, Q>(data, &mut store, store_cache.gas_info)?;
-            write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value,_value_ptr)
+            write_to_contract_ex::<A, S, Q>(data, &mut store, &store_cache.value, _value_ptr)
         }
         None => Ok(0),
     }
@@ -138,24 +138,20 @@ pub fn do_db_read_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier +
             key_type: KeyType::Read,
         },
     );
-    write_to_contract_ex(data, &mut store, &out_data,_value_ptr)
+    write_to_contract_ex(data, &mut store, &out_data, _value_ptr)
 }
 
-fn write_to_contract_ex<A: BackendApi+ 'static, S: Storage+ 'static, Q: Querier+ 'static>(
+fn write_to_contract_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + 'static>(
     data: &Environment<A, S, Q>,
     store: &mut impl AsStoreMut,
     input: &[u8],
-    output:u32,
+    output: u32,
 ) -> VmResult<u32> {
     let ret = write_region(&data.memory(store), output, input);
 
     return match ret {
-        Ok(_) => {
-            Ok(output)
-        }
-        _ => {
-            write_to_contract(data, store, input)
-        }
+        Ok(_) => Ok(output),
+        _ => write_to_contract(data, store, input),
     };
 }
 
@@ -183,7 +179,12 @@ pub fn do_db_write<A: BackendApi + 'static, S: Storage + 'static, Q: Querier + '
 }
 
 /// consum gas for set store to chain
-pub fn consum_set_gas_cost(value_length: u32, write_cost_flat: u64, write_cost_per_byte: u64, gas_mul: u64) -> GasInfo {
+pub fn consum_set_gas_cost(
+    value_length: u32,
+    write_cost_flat: u64,
+    write_cost_per_byte: u64,
+    gas_mul: u64,
+) -> GasInfo {
     let mut used_gas = write_cost_flat;
     used_gas += write_cost_per_byte * (value_length as u64);
     used_gas *= gas_mul;
@@ -212,7 +213,12 @@ pub fn do_db_write_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
     let value = read_region(&data.memory(&mut store), value_ptr, MAX_LENGTH_DB_VALUE)?;
 
-    let gas_info = consum_set_gas_cost(value.len() as u32, data.gas_config_info.write_cost_flat, data.gas_config_info.write_cost_per_byte, data.gas_config_info.gas_mul);
+    let gas_info = consum_set_gas_cost(
+        value.len() as u32,
+        data.gas_config_info.write_cost_flat,
+        data.gas_config_info.write_cost_per_byte,
+        data.gas_config_info.gas_mul,
+    );
     data.state_cache.insert(
         key,
         CacheStore {
@@ -257,7 +263,10 @@ pub fn do_db_remove_ex<A: BackendApi + 'static, S: Storage + 'static, Q: Querier
 
     let key = read_region(&data.memory(&mut store), key_ptr, MAX_LENGTH_DB_KEY)?;
 
-    let gas_info = consum_remove_gas_cost(data.gas_config_info.delete_cost, data.gas_config_info.gas_mul);
+    let gas_info = consum_remove_gas_cost(
+        data.gas_config_info.delete_cost,
+        data.gas_config_info.gas_mul,
+    );
     data.state_cache.entry(key).or_insert(CacheStore {
         value: Vec::default(),
         gas_info,

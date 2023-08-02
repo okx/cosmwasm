@@ -2,9 +2,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::addresses::Addr;
+pub use crate::binary::Binary;
 use crate::coin::Coin;
 use crate::timestamp::Timestamp;
-pub use crate::binary::Binary;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Env {
