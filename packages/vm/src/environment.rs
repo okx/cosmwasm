@@ -7,10 +7,10 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
+use cosmwasm_std::Addr;
 use derivative::Derivative;
 use wasmer::{AsStoreMut, Global, Instance as WasmerInstance, Memory, MemoryView, Value};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
-use cosmwasm_std::Addr;
 
 use crate::backend::{BackendApi, GasInfo, Querier, Storage};
 use crate::errors::{VmError, VmResult};
@@ -33,7 +33,7 @@ pub enum Never {}
 pub struct GasConfigInfo {
     pub write_cost_flat: u64,
     pub write_cost_per_byte: u64,
-    pub delete_cost:u64,
+    pub delete_cost: u64,
     pub gas_mul: u64,
 }
 
@@ -149,7 +149,7 @@ pub struct Environment<A, S, Q> {
     pub global_remaining_points: Option<Global>,
     pub global_points_exhausted: Option<Global>,
     pub api: A,
-    pub print_debug: bool,           // used for call
+    pub print_debug: bool, // used for call
     pub gas_config: GasConfig,
     pub call_depth: u32,
     pub sender_addr: Addr,            // used for delegate call
@@ -170,7 +170,7 @@ impl Default for InternalCallParam {
         InternalCallParam {
             call_depth: 1,
             sender_addr: Addr::unchecked(""),
-            delegate_contract_addr: Addr::unchecked("")
+            delegate_contract_addr: Addr::unchecked(""),
         }
     }
 }
@@ -215,7 +215,13 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         }
     }
 
-    pub fn new_ex(api: A, gas_limit: u64, print_debug: bool, param: InternalCallParam, gas_config_info: GasConfigInfo) -> Self {
+    pub fn new_ex(
+        api: A,
+        gas_limit: u64,
+        print_debug: bool,
+        param: InternalCallParam,
+        gas_config_info: GasConfigInfo,
+    ) -> Self {
         Environment {
             memory: None,
             global_remaining_points: None,
@@ -418,13 +424,21 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
         })
     }
 
-    pub fn get_gas_left_ex(
-        &self,
-        store: &mut impl AsStoreMut,
-    ) -> u64 {
-        match self.global_points_exhausted.as_ref().expect("unable to get global_points_exhausted").get(store) {
+    pub fn get_gas_left_ex(&self, store: &mut impl AsStoreMut) -> u64 {
+        match self
+            .global_points_exhausted
+            .as_ref()
+            .expect("unable to get global_points_exhausted")
+            .get(store)
+        {
             value if value.unwrap_i32() > 0 => 0,
-            _ => u64::try_from(self.global_remaining_points.as_ref().expect("unable to get global_remaining_points").get(store)).unwrap(),
+            _ => u64::try_from(
+                self.global_remaining_points
+                    .as_ref()
+                    .expect("unable to get global_remaining_points")
+                    .get(store),
+            )
+            .unwrap(),
         }
     }
 
@@ -439,7 +453,10 @@ impl<A: BackendApi, S: Storage, Q: Querier> Environment<A, S, Q> {
     }
 
     pub fn set_gas_left_ex(&self, store: &mut impl AsStoreMut, new_limit: u64) {
-        self.global_remaining_points.as_ref().expect("unable to get global_remaining_points").set(store, new_limit.into())
+        self.global_remaining_points
+            .as_ref()
+            .expect("unable to get global_remaining_points")
+            .set(store, new_limit.into())
             .expect("Can't set `wasmer_metering_remaining_points` in Instance");
     }
 
@@ -543,7 +560,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     store: &mut impl AsStoreMut,
     info: GasInfo,
 ) -> VmResult<()> {
-    let gas_left = env.get_gas_left_ex( store);
+    let gas_left = env.get_gas_left_ex(store);
 
     let new_limit = env.with_gas_state_mut(|gas_state| {
         gas_state.externally_used_gas += info.externally_used;
@@ -555,7 +572,7 @@ pub fn process_gas_info<A: BackendApi, S: Storage, Q: Querier>(
     });
 
     // This tells wasmer how much more gas it can consume from this point in time.
-    env.set_gas_left_ex( store, new_limit);
+    env.set_gas_left_ex(store, new_limit);
 
     if info.externally_used + info.cost > gas_left {
         Err(VmError::gas_depletion())
@@ -599,7 +616,12 @@ mod tests {
         Store,
         Box<WasmerInstance>,
     ) {
-        let mut env = Environment::new(MockApi::default(), gas_limit, false, GasConfigInfo::default());
+        let mut env = Environment::new(
+            MockApi::default(),
+            gas_limit,
+            false,
+            GasConfigInfo::default(),
+        );
 
         let (engine, module) = compile(CONTRACT, &[]).unwrap();
         let mut store = make_store_with_engine(engine, TESTING_MEMORY_LIMIT);

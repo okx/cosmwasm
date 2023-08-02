@@ -11,12 +11,13 @@ use wasmer::{
 use crate::backend::{Backend, BackendApi, Querier, Storage};
 use crate::capabilities::required_capabilities_from_module;
 use crate::conversion::{ref_to_u32, to_u32};
-use crate::environment::{Environment,GasConfigInfo, KeyType,InternalCallParam};
+use crate::environment::{Environment, GasConfigInfo, InternalCallParam, KeyType};
 use crate::errors::{CommunicationError, VmError, VmResult};
 use crate::imports::{
-    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_db_read, do_db_read_ex,do_db_remove,do_db_remove_ex,
-    do_db_write,do_db_write_ex, do_debug, do_ed25519_batch_verify, do_ed25519_verify, do_query_chain,
-    do_secp256k1_recover_pubkey, do_secp256k1_verify, do_call, do_delegate_call, do_new_contract,
+    do_abort, do_addr_canonicalize, do_addr_humanize, do_addr_validate, do_call, do_db_read,
+    do_db_read_ex, do_db_remove, do_db_remove_ex, do_db_write, do_db_write_ex, do_debug,
+    do_delegate_call, do_ed25519_batch_verify, do_ed25519_verify, do_new_contract, do_query_chain,
+    do_secp256k1_recover_pubkey, do_secp256k1_verify,
 };
 #[cfg(feature = "iterator")]
 use crate::imports::{do_db_next, do_db_scan};
@@ -47,7 +48,7 @@ pub struct InstanceOptions {
     pub print_debug: bool,
     pub write_cost_flat: u64,
     pub write_cost_per_byte: u64,
-    pub delete_cost:u64,
+    pub delete_cost: u64,
     pub gas_mul: u64,
 }
 
@@ -110,7 +111,8 @@ where
         gas_config_info: GasConfigInfo,
     ) -> VmResult<Self> {
         let fe = FunctionEnv::new(&mut store, {
-            let e = Environment::new_ex(backend.api, gas_limit, print_debug, param, gas_config_info);
+            let e =
+                Environment::new_ex(backend.api, gas_limit, print_debug, param, gas_config_info);
             if print_debug {
                 e.set_debug_handler(Some(Rc::new(RefCell::new(
                     |msg: &str, _gas_remaining: DebugInfo<'_>| {
@@ -563,7 +565,7 @@ where
         None,
         block_num,
         block_milestone,
-        GasConfigInfo::default()
+        GasConfigInfo::default(),
     )
 }
 
