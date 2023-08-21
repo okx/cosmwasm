@@ -127,7 +127,20 @@ where
         let mut env_imports = Exports::new();
 
         if higher_than_wasm_v1(cur_block_num, block_milestone) {
-            //TODO upgrade
+            env_imports.insert(
+                "new_contract",
+                Function::new_typed_with_env(&mut store, &fe, do_new_contract),
+            );
+
+            env_imports.insert(
+                "call",
+                Function::new_typed_with_env(&mut store, &fe, do_call),
+            );
+
+            env_imports.insert(
+                "delegate_call",
+                Function::new_typed_with_env(&mut store, &fe, do_delegate_call),
+            );
         }
 
         // Reads the database entry at the given key into the the value.
@@ -245,11 +258,6 @@ where
         );
 
         env_imports.insert(
-            "new_contract",
-            Function::new_typed_with_env(&mut store, &fe, do_new_contract),
-        );
-
-        env_imports.insert(
             "query_chain",
             Function::new_typed_with_env(&mut store, &fe, do_query_chain),
         );
@@ -275,16 +283,6 @@ where
         env_imports.insert(
             "db_next",
             Function::new_typed_with_env(&mut store, &fe, do_db_next),
-        );
-
-        env_imports.insert(
-            "call",
-            Function::new_typed_with_env(&mut store, &fe, do_call),
-        );
-
-        env_imports.insert(
-            "delegate_call",
-            Function::new_typed_with_env(&mut store, &fe, do_delegate_call),
         );
 
         import_obj.register_namespace("env", env_imports);
