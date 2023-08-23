@@ -35,6 +35,31 @@ pub const SUPPORTED_IMPORTS: &[&str] = &[
     "env.db_next",
 ];
 
+/// Lists all imports we provide upon instantiating the instance in Instance::from_module()
+/// the V0 not support "env.call", "env.delegate_call", "env.new_contract",
+pub const SUPPORTED_IMPORTS_V0: &[&str] = &[
+    "env.abort",
+    "env.db_read",
+    "env.db_read_ex",
+    "env.db_write",
+    "env.db_write_ex",
+    "env.db_remove",
+    "env.db_remove_ex",
+    "env.addr_validate",
+    "env.addr_canonicalize",
+    "env.addr_humanize",
+    "env.secp256k1_verify",
+    "env.secp256k1_recover_pubkey",
+    "env.ed25519_verify",
+    "env.ed25519_batch_verify",
+    "env.debug",
+    "env.query_chain",
+    #[cfg(feature = "iterator")]
+        "env.db_scan",
+    #[cfg(feature = "iterator")]
+        "env.db_next",
+];
+
 /// Lists all entry points we expect to be present when calling a contract.
 /// Other optional exports exist, e.g. "execute", "migrate" and "query".
 /// The marker export interface_version_* is checked separately.
