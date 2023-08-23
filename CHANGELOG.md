@@ -4,7 +4,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0-400] - 2023-08-22
 
 ### Changed
 
@@ -16,9 +16,18 @@ and this project adheres to
   customizing the handling of debug messages emitted by the contract ([#1667]).
 - cosmwasm-vm: Upgrade Wasmer to version 4.0.0.
 - cosmwasm-check: Update clap dependency to version 4 ([#1677])
+- cosmwasm-vm: Optinze the read and write performance ([#43]).
+- cosmwasm-vm: Support the do_new_contract function, it can support create contract ([#46]).
+- cosmwasm-vm: Support the do_call and do_delegate_call function, it can support cross contract call ([#47]).
+- cosmwasm-vm: Support gas table function ([#49]).
 
+[#43]: https://github.com/okx/cosmwasm/pull/43
+[#46]: https://github.com/okx/cosmwasm/pull/46
+[#47]: https://github.com/okx/cosmwasm/pull/47
+[#49]: https://github.com/okx/cosmwasm/pull/49
 [#1667]: https://github.com/CosmWasm/cosmwasm/pull/1667
 [#1677]: https://github.com/CosmWasm/cosmwasm/pull/1677
+
 
 ## [1.3.0-rc.0] - 2023-07-03
 
@@ -1792,7 +1801,8 @@ Some main points:
 
 All future Changelog entries will reference this base
 
-[unreleased]: https://github.com/CosmWasm/cosmwasm/compare/v1.3.0-rc.0...HEAD
+[unreleased]: https://github.com/CosmWasm/cosmwasm/compare/v1.3.0-400...HEAD
+[1.3.0-400]: https://github.com/CosmWasm/cosmwasm/compare/v1.3.0-400...v1.3.0-rc.0
 [1.3.0-rc.0]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.7...v1.3.0-rc.0
 [1.2.7]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/CosmWasm/cosmwasm/compare/v1.2.5...v1.2.6
