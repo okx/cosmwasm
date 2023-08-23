@@ -162,7 +162,10 @@ pub fn mock_instance_with_options(
         delete_cost: GasConfigInfo::default().delete_cost,
         gas_mul: GasConfigInfo::default().gas_mul,
     };
-    Instance::from_code(wasm, backend, options, memory_limit, 0, HashMap::new()).unwrap()
+
+    let mut map: HashMap<String, u64> = HashMap::new();
+    map.insert(String::from("wasm_v1"), 1);
+    Instance::from_code(wasm, backend, options, memory_limit, 1, map).unwrap()
 }
 
 /// Creates InstanceOptions for testing
