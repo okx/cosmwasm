@@ -6,6 +6,12 @@ and this project adheres to
 
 ## [1.3.0] - 2023-08-24
 
+### Fixed
+
+- cosmwasm-vm: fix the calculation of state data inconsistent([#44]).
+
+[#44]: https://github.com/okx/cosmwasm/pull/44
+
 ### Added
 
 - cosmwasm-vm: Optinze the read and write performance ([#43]).
