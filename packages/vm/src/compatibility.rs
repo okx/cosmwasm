@@ -24,6 +24,7 @@ pub const SUPPORTED_IMPORTS: &[&str] = &[
     "env.secp256k1_recover_pubkey",
     "env.ed25519_verify",
     "env.ed25519_batch_verify",
+    "env.keccak256",
     "env.debug",
     "env.new_contract",
     "env.query_chain",
@@ -55,9 +56,9 @@ pub const SUPPORTED_IMPORTS_V0: &[&str] = &[
     "env.debug",
     "env.query_chain",
     #[cfg(feature = "iterator")]
-        "env.db_scan",
+    "env.db_scan",
     #[cfg(feature = "iterator")]
-        "env.db_next",
+    "env.db_next",
 ];
 
 /// Lists all entry points we expect to be present when calling a contract.
@@ -692,6 +693,7 @@ mod tests {
             (import "env" "secp256k1_recover_pubkey" (func (param i32 i32 i32) (result i64)))
             (import "env" "ed25519_verify" (func (param i32 i32 i32) (result i32)))
             (import "env" "ed25519_batch_verify" (func (param i32 i32 i32) (result i32)))
+            (import "env" "keccak256" (func (param i32) (result i64)))
         )"#,
         )
         .unwrap();
@@ -711,6 +713,7 @@ mod tests {
             (import "env" "secp256k1_recover_pubkey" (func (param i32 i32 i32) (result i64)))
             (import "env" "ed25519_verify" (func (param i32 i32 i32) (result i32)))
             (import "env" "ed25519_batch_verify" (func (param i32 i32 i32) (result i32)))
+            (import "env" "keccak256" (func (param i32) (result i64)))
             (import "env" "spam01" (func (param i32 i32) (result i32)))
             (import "env" "spam02" (func (param i32 i32) (result i32)))
             (import "env" "spam03" (func (param i32 i32) (result i32)))
@@ -802,7 +805,6 @@ mod tests {
             (import "env" "spam89" (func (param i32 i32) (result i32)))
             (import "env" "spam90" (func (param i32 i32) (result i32)))
             (import "env" "spam91" (func (param i32 i32) (result i32)))
-            (import "env" "spam92" (func (param i32 i32) (result i32)))
         )"#,
         )
         .unwrap();

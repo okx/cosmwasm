@@ -187,6 +187,8 @@ pub trait Api {
 
     fn delegate_call(&self, env: &Env, msg: &WasmMsg) -> StdResult<Vec<u8>>;
 
+    fn keccak256(&self, data: &[u8]) -> Result<Vec<u8>, RecoverPubkeyError>;
+
     /// Emits a debugging message that is handled depending on the environment (typically printed to console or ignored).
     /// Those messages are not persisted to chain.
     fn debug(&self, message: &str);
