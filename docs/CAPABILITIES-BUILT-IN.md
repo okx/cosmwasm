@@ -18,4 +18,4 @@ might define others.
 - `cosmwasm_1_3` enables the `BankQuery::AllDenomMetadata`,
   `BankQuery::DenomMetadata` and `DistributionQuery::DelegatorWithdrawAddress`
   queries, as well as `DistributionMsg::FundCommunityPool`. Only chains running
-  CosmWasm `1.3.0` or higher support this.
+  CosmWasm `1.3.1` or higher support this.
