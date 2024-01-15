@@ -2,7 +2,6 @@ use std::fs;
 use std::hash::Hash;
 use std::io;
 use std::panic::catch_unwind;
-use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
